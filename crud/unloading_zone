@@ -1,0 +1,146 @@
+from dbfread import DBF
+import os
+import json
+import datetime
+import decimal
+
+def default_serializer(obj):
+    """Кастомный сериализатор для JSON (даты + Decimal)."""
+    if isinstance(obj, (datetime.date, datetime.datetime)):
+        return obj.isoformat()
+    elif isinstance(obj, decimal.Decimal):
+        return float(obj)
+    raise TypeError(f"Type {type(obj)} not serializable")
+
+
+def load_dbf_data():
+    """Загружает связанные DBF-файлы и сохраняет результат в JSON."""
+    dbf_folder = r"C:/Data_BALANCE"
+
+    # --- Проверяем папку и наличие нужных файлов ----------------------------
+    if not os.path.exists(dbf_folder):
+        raise FileNotFoundError(f"Папка {dbf_folder} не найдена")
+
+    required_files = ['TEPO.DBF', 'TEPP.DBF', 'TEPR.DBF',
+                      'TEPS.DBF', 'TEPT.DBF', 'TEPW.DBF']
+    for file in required_files:
+        if not os.path.exists(os.path.join(dbf_folder, file)):
+            raise FileNotFoundError(f"Не найден файл {file}")
+
+    # --- Загружаем TEPO (список объектов) -----------------------------------
+    try:
+        tepo_table = DBF(os.path.join(dbf_folder, 'TEPO.DBF'), encoding='cp866')
+    except UnicodeDecodeError:
+        tepo_table = DBF(os.path.join(dbf_folder, 'TEPO.DBF'), encoding='cp1251')
+
+    object_names = [rec['NAME'] for rec in tepo_table if 'NAME' in rec]
+    if not object_names:
+        raise ValueError("В таблице TEPO не найдены объекты")
+
+    print("Доступные объекты:")
+    for i, n in enumerate(object_names, 1):
+        print(f"{i}. {n}")
+
+    while True:
+        try:
+            idx = int(input("Выберите номер объекта: ")) - 1
+            if 0 <= idx < len(object_names):
+                selected_object = object_names[idx]
+                break
+            print("Некорректный номер")
+        except ValueError:
+            print("Введите число")
+
+    # --- Ищем запись в TEPO и связанные имена ------------------------------
+    selected_record = None
+    related_names = {}
+    for rec in tepo_table:
+        if rec.get('NAME') == selected_object:
+            selected_record = dict(rec)
+            related_names = {'TEPP': rec.get('NAMEP', ''),
+                             'TEPR': rec.get('NAMER', ''),
+                             'TEPW': rec.get('NAMEW', ''),
+                             'TEPS': rec.get('NAMES', '')}
+            break
+
+    if not selected_record:
+        raise ValueError(f"Объект '{selected_object}' не найден")
+
+    # --- Результирующий словарь --------------------------------------------
+    result = {
+        selected_object: {
+            "TEPO": selected_record,
+            "TEPP": [], "TEPR": [], "TEPS": [], "TEPW": [], "TEPT": []
+        }
+    }
+
+    # --- Загружаем остальные таблицы ---------------------------------------
+    tables, tpt_field_names = {}, []
+    for tbl in ['TEPP', 'TEPR', 'TEPS', 'TEPT', 'TEPW']:
+        path = os.path.join(dbf_folder, f"{tbl}.DBF")
+        try:
+            try:
+                dbf = DBF(path, encoding='cp866')
+            except UnicodeDecodeError:
+                dbf = DBF(path, encoding='cp1251')
+            tables[tbl] = list(dbf)
+
+            if tbl == 'TEPT':
+                # 1. Все поля, кроме NAME и NAMU
+                tpt_field_names = [f.name for f in dbf.fields
+                                   if f.name not in ('NAME', 'NAMU')]
+
+                # 2. Желаемый порядок (можно настроить вручную)
+                desired_order = tpt_field_names              # текущий порядок
+                # Например, если нужно строго: desired_order = ['FLD1', 'FLD2', ...]
+                # Если нужно альфавитно:       desired_order = sorted(tpt_field_names)
+
+                # 3. Перезаписываем итоговый список полей
+                tpt_field_names = desired_order
+
+        except Exception as e:
+            print(f"Ошибка загрузки {tbl}: {e}")
+            tables[tbl] = []
+
+    # --- Заполняем связанные списки (TEPP, TEPR, …) -------------------------
+    for tbl in ['TEPP', 'TEPR', 'TEPS', 'TEPW']:
+        key = related_names.get(tbl)
+        if key:
+            result[selected_object][tbl] = [dict(r) for r in tables[tbl]
+                                            if r.get('NAME') == key]
+
+    # --- Формируем TEPT в нужном формате -----------------------------------
+    if related_names['TEPP']:
+        tepp_records = [r for r in tables['TEPP']
+                        if r.get('NAME') == related_names['TEPP']]
+
+        tpt_names = {r.get('NAMET') for r in tepp_records} | \
+                    {r.get('NAMED') for r in tepp_records}
+
+        tpt_out = []
+        for rec in tables['TEPT']:
+            if rec.get('NAME') in tpt_names:
+                # порядок значений строго по tpt_field_names
+                tab_vals = [rec.get(f) for f in tpt_field_names]
+                tpt_out.append({
+                    "NAME": rec.get('NAME', ''),
+                    "NAMU": rec.get('NAMU', ''),
+                    "tab": tab_vals
+                })
+
+        result[selected_object]['TEPT'] = tpt_out
+
+    # --- Сохраняем JSON -----------------------------------------------------
+    json_path = os.path.join(dbf_folder, f"{selected_object}.json")
+    with open(json_path, 'w', encoding='utf-8') as f:
+        json.dump(result, f, indent=2, ensure_ascii=False, default=default_serializer)
+
+    print(f"\nРезультат сохранён в: {json_path}")
+    return result
+
+
+if __name__ == "__main__":
+    try:
+        load_dbf_data()
+    except Exception as err:
+        print(f"Ошибка: {err}")
