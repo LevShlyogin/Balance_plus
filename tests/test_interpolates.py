@@ -1,4 +1,4 @@
-from custom_interpolates import *
+from utils.custom_interpolates import *
 
 # Данные для линейной интерполяции
 tab_linear = [[15.3, 26.8, 38.4, 49.9, 61.5, 73], [0.157, 0.258, 0.469, 0.607, 0.763, 0.919]]
