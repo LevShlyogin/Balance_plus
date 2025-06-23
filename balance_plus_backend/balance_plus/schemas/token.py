@@ -1,0 +1,1 @@
+# TODO: Pydantic схема Token 
