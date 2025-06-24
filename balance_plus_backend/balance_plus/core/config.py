@@ -1,11 +1,12 @@
-from pydantic import BaseSettings
+from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
-    database_url: str
-    gitlab_client_id: str
-    gitlab_client_secret: str
-    secret_key: str
-    redis_url: str
+    DATABASE_URL: str
+    GITLAB_URL: str
+    GITLAB_APP_ID: str
+    GITLAB_APP_SECRET: str
+    GITLAB_REDIRECT_URI: str
+    GITLAB_TEMPLATE_PROJECT_ID: int
 
     class Config:
         env_file = ".env"
