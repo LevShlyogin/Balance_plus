@@ -3,6 +3,7 @@ import numpy as np
 
 from utils.division_range import split_into_parts
 
+
 class TestSplitIntoParts(unittest.TestCase):
     """
     Набор тестов для функции split_into_parts.
@@ -16,7 +17,7 @@ class TestSplitIntoParts(unittest.TestCase):
         n_parts = 10
         expected = np.array([0., 100., 200., 300., 400., 500., 600., 700., 800., 900., 1000.])
         result = split_into_parts(number, n_parts)
-        self.assertTrue(np.array_equal(result, expected)) # проверка идентичности
+        self.assertTrue(np.array_equal(result, expected))  # проверка идентичности
 
     def test_output_properties(self):
         """
@@ -26,11 +27,11 @@ class TestSplitIntoParts(unittest.TestCase):
         n_parts = 5
         result = split_into_parts(number, n_parts)
 
-        self.assertEqual(len(result), n_parts + 1) #длина
+        self.assertEqual(len(result), n_parts + 1)  # длина
 
-        self.assertEqual(result[0], 0) # начальная точка
+        self.assertEqual(result[0], 0)  # начальная точка
 
-        self.assertEqual(result[-1], number) #конечная точка
+        self.assertEqual(result[-1], number)  # конечная точка
 
     def test_edge_case_one_part(self):
         """
@@ -48,7 +49,7 @@ class TestSplitIntoParts(unittest.TestCase):
         """
         number = 0
         n_parts = 10
-        expected = np.zeros(n_parts + 1) # Массив из одиннадцати нулей
+        expected = np.zeros(n_parts + 1)  # Массив из одиннадцати нулей
         result = split_into_parts(number, n_parts)
         self.assertTrue(np.array_equal(result, expected))
         self.assertEqual(len(result), 11)
