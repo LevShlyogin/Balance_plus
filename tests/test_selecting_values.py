@@ -1,8 +1,8 @@
 import unittest
-import numpy as np
 
-from utils.problem import ProblemDefinition
-from utils.solvers import AnalyticalSolver, BisectionSolver, NewtonSolver
+from utils.base_for_selection import ProblemDefinition
+from utils.selection_methods import AnalyticalSolver, BisectionSolver, NewtonSolver
+
 
 class TestSolvers(unittest.TestCase):
 
@@ -24,15 +24,15 @@ class TestSolvers(unittest.TestCase):
         solver = NewtonSolver(self.problem, tol=1e-9)
         result = solver.solve(self.target_delta, initial_guess=2.0)
         self.assertAlmostEqual(result, self.expected_x, places=7)
-        self.assertGreater(solver.iterations, 1) # Должен сделать >1 итерации
-        self.assertLess(solver.iterations, 10) # Но не слишком много
+        self.assertGreater(solver.iterations, 1)  # Должен сделать >1 итерации
+        self.assertLess(solver.iterations, 10)  # Но не слишком много
 
     def test_bisection_solver_convergence(self):
         """Тест: Метод дихотомии сходится к правильному значению."""
         solver = BisectionSolver(self.problem, tol=1e-7)
         result = solver.solve(self.target_delta, a=1.0, b=3.0)
-        self.assertAlmostEqual(result, self.expected_x, places=6) # Точность ниже
-        self.assertGreater(solver.iterations, 10) # Требует больше итераций
+        self.assertAlmostEqual(result, self.expected_x, places=6)  # Точность ниже
+        self.assertGreater(solver.iterations, 10)  # Требует больше итераций
 
     def test_newton_fails_to_converge(self):
         """Тест: Метод Ньютона вызывает ошибку, если не сходится (стоп-кран)."""
@@ -47,6 +47,7 @@ class TestSolvers(unittest.TestCase):
         # На отрезке [3, 10] f(x) одного знака для данной задачи
         with self.assertRaisesRegex(ValueError, "функция имеет одинаковый знак"):
             solver.solve(self.target_delta, a=3.0, b=10.0)
+
 
 if __name__ == '__main__':
     unittest.main(argv=['first-arg-is-ignored'], exit=False, verbosity=2)

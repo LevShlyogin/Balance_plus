@@ -1,25 +1,27 @@
 import math
 
+
 class ProblemDefinition:
     """
     Инкапсулирует математическую постановку задачи: расчет A3_delt и его производной.
-    Это позволяет менять формулы в одном месте, не затрагивая алгоритмы решателей.
+    Это позволяет менять формулы в одном месте, не затрагивая алгоритмы решения.
     """
+
     def __init__(self):
         """Вычисляет и кэширует константы один раз для производительности."""
         pi = 3.1415
         e_approx = 2.71
         power = 0.83
-        
+
         # A3_delt = 1 - C * X^(power-1)
-        self._c = (pi / e_approx) ** power
-        self._power_minus_1 = power - 1.0  # -0.17
-    
+        self.c = (pi / e_approx) ** power
+        self.power_minus_1 = power - 1.0  # -0.17
+
     def calculate_delta(self, x: float) -> float:
         """Рассчитывает A3_delt для заданного X."""
         if x <= 0:
-            return float('nan') # Возведение отрицательного числа в дробную степень не определено в R
-        return 1.0 - self._c * math.pow(x, self._power_minus_1)
+            return float('nan')  # Возведение отрицательного числа в дробную степень не определено в R
+        return 1.0 - self.c * math.pow(x, self.power_minus_1)
 
     def f(self, x: float, target_delta: float) -> float:
         """Целевая функция, корень которой мы ищем: F(X) = A3_delt(X) - target_delta."""
@@ -31,4 +33,4 @@ class ProblemDefinition:
         # где p = self._power_minus_1
         if x <= 0:
             return float('nan')
-        return -self._c * self._power_minus_1 * math.pow(x, self._power_minus_1 - 1.0)
+        return -self.c * self.power_minus_1 * math.pow(x, self.power_minus_1 - 1.0)

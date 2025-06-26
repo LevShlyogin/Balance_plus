@@ -1,36 +1,38 @@
-from utils.main import run_comparison
+from compare_selection_methods import run_comparison
+
 
 def create_markdown_table(results):
     """Создает строку с таблицей в формате Markdown из списка результатов."""
     # Заголовок таблицы
     header = "| Метод              | Найденный X        | Итераций | Время (μs/запуск) | Итоговый A3_delt |"
     separator = "|:-------------------|:-------------------|:---------|:------------------|:-----------------|"
-    
+
     # Строки таблицы
     rows = []
     for res in results:
         # Форматируем значения для красивого вывода
-        method = f"**{res['Метод']}**" # Выделяем название метода жирным
-        
+        method = f"**{res['Метод']}**"  # Выделяем название метода жирным
+
         x_val = res['Найденный X']
         x_str = f"`{x_val:.8f}`" if isinstance(x_val, float) else str(x_val)
-        
+
         iters_str = str(res['Итераций'])
-        
+
         time_val = res['Время (μs/запуск)']
         time_str = f"{time_val:.4f}" if isinstance(time_val, float) else str(time_val)
-        
+
         delta_val = res['Итоговый A3_delt']
         delta_str = f"{delta_val:.10f}" if isinstance(delta_val, float) else str(delta_val)
-        
+
         # Собираем строку
         rows.append(f"| {method:<18} | {x_str:<18} | {iters_str:<8} | {time_str:<17} | {delta_str:<16} |")
-        
+
     return "\n".join([header, separator] + rows)
+
 
 def generate_report_file(results, filename="report.md"):
     """Генерирует полный файл отчета в формате Markdown."""
-    
+
     table_md = create_markdown_table(results)
 
     # Используем многострочный f-string для создания шаблона всего файла
@@ -83,6 +85,6 @@ def generate_report_file(results, filename="report.md"):
 if __name__ == "__main__":
     # 1. Получаем результаты, запустив симуляцию
     simulation_results = run_comparison()
-    
+
     # 2. Генерируем отчет на основе этих результатов
     generate_report_file(simulation_results)
