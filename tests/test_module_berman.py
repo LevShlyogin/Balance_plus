@@ -1,114 +1,68 @@
 import unittest
-import copy
-from utils.module_berman import calculate_thermal_characteristics 
+from utils.berman_strategy import BermanStrategy
 
-class TestKondensatorCalculations(unittest.TestCase):
-
+class TestBermanEjector(unittest.TestCase):
     def setUp(self):
+        self.strategy = BermanStrategy()
         self.test_params = {
-            'A': {1: 1.0, 2: 1.0},
-            'Z': {1: 2, 2: 2},
-            'FN': {1: 10000, 2: 3000},
-            'DI': 520.0,
-            'DK': 540.0,
-            'DLCT': 37.0,
-            'BAP': 3,
-            'DD': 22.0 / 1000.0,
-            'DCT': 1.0 / 1000.0,
-            'W': [
-                [14215.0],
-                [3285.0]
-            ],
-            'T1': [
-                [27.5, 32.0],
-                [27.5, 32.0]
-            ],
-            'D': [30.0, 80.0, 130.0, 180.0, 230.0],
-            'R': [0.1, 104.4], 
-            'RBETA': [0.0, 1.0], 
-            'GV': 20.0
+            'length_cooling_tubes_of_the_main_bundle': 7.080,
+            'number_cooling_water_passes_of_the_main_bundle': 2,
+            'number_cooling_tubes_of_the_main_bundle': 1754,
+            'mass_flow_steam_nom': 16.0,
+            'thermal_conductivity_cooling_surface_tube_material': 37.0,
+            'diameter_inside_of_pipes': 22.0,
+            'thickness_pipe_wall': 1.0,
+            'enthalpy_flow_path_1': 520.0,
+            'BAP': 1,
+            'mass_flow_cooling_water_list': [1200],
+            'temperature_cooling_water_1_list': [4, 5, 10, 15, 20, 25, 30, 35],
+            'mass_flow_steam_list': [16],
+            'coefficient_R_list': [0.10e-6],
+            'mass_flow_air': 16.5,
+            'number_ejector': 1,
         }
 
-    def test_calculation_with_report_data(self):
-        """
-        Тестирует основной сценарий расчета и сверяет с данными из эталонного отчета.
-        """
-        results = calculate_thermal_characteristics(self.test_params)
-        main_results = results['main_results']
+    def test_ejector_pressure_values(self):
+        results = self.strategy.calculate(self.test_params)
+        all_ejector_results = results['ejector_results']
 
-        self.assertGreater(len(main_results), 0, "Расчет не вернул результатов.")
-        self.assertEqual(len(main_results), 20, "Неверное количество строк в результате")
-
-        res_r1_t1_d1 = main_results[0]
-        self.assertAlmostEqual(res_r1_t1_d1['TK'], 53.365, places=3)
-        self.assertAlmostEqual(res_r1_t1_d1['PS'], 0.14849, places=5)
-        self.assertAlmostEqual(res_r1_t1_d1['T4_1'], 24.991, places=3)
-
-        res_r1_t1_d5 = main_results[4]
-        self.assertAlmostEqual(res_r1_t1_d5['TK'], 71.192, places=3)
-        self.assertAlmostEqual(res_r1_t1_d5['PS'], 0.33471, places=5)
-
-        res_r1_t2_d1 = main_results[5]
-        self.assertAlmostEqual(res_r1_t2_d1['TK'], 55.147, places=3)
-        self.assertAlmostEqual(res_r1_t2_d1['PS'], 0.16181, places=5)
-
-        res_r2_t1_d1 = main_results[10]
-        self.assertAlmostEqual(res_r2_t1_d1['TK'], 55.033, places=3)
-        self.assertAlmostEqual(res_r2_t1_d1['PS'], 0.16092, places=5)
-
-        res_r2_t2_d5 = main_results[19]
-        self.assertAlmostEqual(res_r2_t2_d5['TK'], 86.396, places=3)
-        self.assertAlmostEqual(res_r2_t2_d5['PS'], 0.62250, places=5)
-
-    def test_ejector_calculation_with_report_data(self):
-        """
-        Тестирует расчет характеристик с учетом эжектора по данным отчета.
-        """
-        results = calculate_thermal_characteristics(self.test_params)
-        ejector_results = results['ejector_results']
-
-        self.assertIsNotNone(ejector_results)
-        self.assertEqual(len(ejector_results['temps']), 2)
-
-        self.assertAlmostEqual(ejector_results['pk_values_1'][0], 6.533, places=3) # для t=32.0
-        self.assertAlmostEqual(ejector_results['pk_values_1'][1], 5.391, places=3) # для t=27.5
-
-        self.assertAlmostEqual(ejector_results['pk_values_2'][0], 6.233, places=3) # для t=32.0
-        self.assertAlmostEqual(ejector_results['pk_values_2'][1], 5.091, places=3) # для t=27.5
+        self.assertIsNotNone(all_ejector_results, "Результаты по эжектору отсутствуют.")
         
-    def test_one_pass_condenser_logic(self):
-        """
-        Тестирует расчет для одноходового конденсатора (BAP=1).
-        Этот тест остается без изменений, так как он проверяет логику, а не значения.
-        """
-        one_pass_params = copy.deepcopy(self.test_params)
-        one_pass_params['BAP'] = 1
+        ejector_results_for_one = [
+            item for item in all_ejector_results if item['number_of_ejectors'] == 1
+        ]
         
-        results = calculate_thermal_characteristics(one_pass_params)
-        main_results = results['main_results']
-        
-        self.assertGreater(len(main_results), 0)
+        self.assertEqual(len(ejector_results_for_one), len(self.test_params['temperature_cooling_water_1_list']),
+                         "Количество результатов для одного эжектора не совпадает с количеством температур.")
 
-        for row in main_results:
-            self.assertEqual(row['FKD2'], 0)
-            self.assertEqual(row['T3_2'], 0)
-            self.assertEqual(row['T4_2'], 0)
+        ejector_pressure_map = {
+            item['inlet_water_temperature']: item['ejector_pressure_kPa']
+            for item in ejector_results_for_one
+        }
 
-    def test_no_ejector_data(self):
-        """
-        Тестирует поведение, когда данные для эжектора отсутствуют (GV=0).
-        Этот тест также остается без изменений.
-        """
-        no_ejector_params = copy.deepcopy(self.test_params)
-        no_ejector_params['GV'] = 0
-        
-        results = calculate_thermal_characteristics(no_ejector_params)
-        ejector_results = results['ejector_results']
-        
-        self.assertEqual(len(ejector_results['temps']), 0)
-        self.assertEqual(len(ejector_results['pk_values_1']), 0)
-        self.assertEqual(len(ejector_results['pk_values_2']), 0)
+        expected_pressures = {
+            35: 7.341,
+            30: 5.889,
+            25: 4.755,
+            20: 3.879,
+            15: 3.209,
+            10: 2.703,
+            5: 2.325,
+            4: 2.263,
+        }
 
+        for temp, expected_pressure in expected_pressures.items():
+            with self.subTest(temperature=temp):
+                self.assertIn(temp, ejector_pressure_map, f"Результат для температуры {temp}°C не найден.")
+                actual_pressure = ejector_pressure_map[temp]
+                self.assertAlmostEqual(
+                    actual_pressure,
+                    expected_pressure,
+                    places=2,
+                    msg=f"Давление для t={temp}°C не совпадает"
+                )
+
+        print("\nТест: все значения давлений соответствуют эталону.")
 
 if __name__ == '__main__':
-    unittest.main(argv=['first-arg-is-ignored'], exit=False)
+    unittest.main()

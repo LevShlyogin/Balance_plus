@@ -1,103 +1,64 @@
-from utils.module_berman import calculate_thermal_characteristics
-from datetime import datetime
+from utils.berman_strategy import BermanStrategy
 
-def generate_markdown_report(params, results, filename="report.md"):
-    def group_results(main_results):
-        grouped = {}
-        for row in main_results:
-            key = (row['W1'], row['W2'], row['R_input'], row['Beta'])
-            if key not in grouped:
-                grouped[key] = []
-            grouped[key].append(row)
-        return grouped
-
-    with open(filename, 'w', encoding='utf-8') as f:
-        f.write("# Отчет по тепловому расчету конденсатора\n\n")
-        f.write(f"**Дата генерации:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
-
-        f.write("## 1. Исходные данные\n\n")
-        f.write("| Параметр | Значение | Ед. изм. |\n")
-        f.write("|:---|:---:|:---|\n")
-        f.write(f"| Активная длина трубок (осн. / встр. пучок) | {params['A'][1]} / {params['A'][2]} | м |\n")
-        f.write(f"| Число ходов воды (осн. / встр. пучок) | {params['Z'][1]} / {params['Z'][2]} | - |\n")
-        f.write(f"| Кол-во трубок (осн. / встр. пучок) | {params['FN'][1]} / {params['FN'][2]} | шт. |\n")
-        f.write(f"| Теплоемкость пара (DI) | {params['DI']} | ккал/кг·°C |\n")
-        f.write(f"| Номинальный расход пара (DK) | {params['DK']} | т/ч |\n")
-        f.write(f"| Теплопроводность материала труб (DLCT) | {params['DLCT']} | Вт/м·К |\n")
-        f.write(f"| Номер варианта (BAP) | {params['BAP']} | - |\n")
-        f.write(f"| Внутренний диаметр трубок (DD) | {params['DD'] * 1000} | мм |\n")
-        f.write(f"| Толщина стенки трубок (DCT) | {params['DCT'] * 1000} | мм |\n")
-        f.write(f"| Присос воздуха для эжектора (GV) | {params['GV']} | кг/ч |\n\n")
-
-        f.write("## 2. Результаты расчетов\n\n")
-        
-        grouped_data = group_results(results['main_results'])
-        
-        for key, rows in grouped_data.items():
-            w1, w2, r_input, beta = key
-            f.write(f"### Режим: W1={w1} м³/ч, W2={w2} м³/ч, R={r_input} (β={beta})\n\n")
-            
-            f.write("| D, т/ч | t1(1),°C | t1(2),°C | T3(1) | T3(2) | T4(1) | T4(2) | **TK, °C** | **PS, кПа** |\n")
-            f.write("|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|\n")
-            
-            # Строки таблицы
-            for row in rows:
-                f.write(
-                    f"| {row['D']:.1f} "
-                    f"| {row['T1_1']:.1f} "
-                    f"| {row['T1_2']:.1f} "
-                    f"| {row['T3_1']:.3f} "
-                    f"| {row['T3_2']:.3f} "
-                    f"| {row['T4_1']:.3f} "
-                    f"| {row['T4_2']:.3f} "
-                    f"| **{row['TK']:.3f}** "
-                    f"| **{row['PS']:.5f}** |\n"
-                )
-            f.write("\n")
-
-        if results['ejector_results']['temps']:
-            f.write("## 3. Тепловые характеристики с учетом эжектора\n\n")
-            
-            ej_res = results['ejector_results']
-            temps_header = " | ".join([f"{t:.1f}°C" for t in ej_res['temps']])
-            
-            f.write(f"| Характеристика | {temps_header} |\n")
-            f.write(f"|:---|{'|:'.join(['---:'] * len(ej_res['temps']))}|\n")
-            
-            pk1_vals = " | ".join([f"{pk:.3f}" for pk in ej_res['pk_values_1']])
-            pk2_vals = " | ".join([f"{pk:.3f}" for pk in ej_res['pk_values_2']])
-            
-            f.write(f"| Давление с 1 эжектором, кПа | {pk1_vals} |\n")
-            f.write(f"| Давление с 2 эжекторами, кПа | {pk2_vals} |\n")
+def create_markdown_table(headers, rows):
+    header_line = "| " + " | ".join(map(str, headers)) + " |"
+    separator_line = "|:---" + "|---:".join([""] * len(headers)) + "|"
     
-    print(f"Отчет успешно сгенерирован в файле: {filename}")
+    row_lines = []
+    for row in rows:
+        formatted_row = [row[0]] + [f"{val:.3f}" for val in row[1:]]
+        row_lines.append("| " + " | ".join(map(str, formatted_row)) + " |")
+        
+    return "\n".join([header_line, separator_line] + row_lines)
 
-
-if __name__ == "__main__":
-    input_params = {
-        'A': {1: 1.0, 2: 1.0},
-        'Z': {1: 2, 2: 2},
-        'FN': {1: 10000, 2: 3000},
-        'DI': 520.0,
-        'DK': 540.0,
-        'DLCT': 37.0,
-        'BAP': 3,
-        'DD': 22.0 / 1000.0,
-        'DCT': 1.0 / 1000.0,
-        'W': [
-            [14215.0],
-            [3285.0]
-        ],
-        'T1': [
-            [27.5, 32.0],
-            [27.5, 32.0]
-        ],
-        'D': [30.0, 80.0, 130.0, 180.0, 230.0],
-        'R': [0.10, 104.40],
-        'RBETA': [1.00, 0.75],
-        'GV': 20.0
+def run_simulation(wo, wbc, b_label, r_raw_value, has_ejector_data):
+    r_old_units = r_raw_value / 1_000_000
+    r_si_units = r_old_units / 860
+    
+    base_params = {
+        'length_cooling_tubes_of_the_main_bundle': 7.080,
+        'number_cooling_water_passes_of_the_main_bundle': 2,
+        'number_cooling_tubes_of_the_main_bundle': 1754,
+        'enthalpy_flow_path_1': 2175.68, 
+        'mass_flow_steam_nom': 16.00,
+        'thermal_conductivity_cooling_surface_tube_material': 37.0,
+        'diameter_inside_of_pipes': 22.0,
+        'thickness_pipe_wall': 1.0,
+        
+        'coefficient_R_list': [r_si_units],
+        
+        'temperature_cooling_water_1_list': [4, 5, 10, 15, 20, 25, 30, 35],
+        'mass_flow_steam_list': [16, 20, 30, 40, 50, 60, 70, 80, 90, 100],
+        'mass_flow_cooling_water_list': [wo], 
+        'mass_flow_cooling_water_built_in_beam_list': [wbc],
+        'BAP': float(b_label) if b_label != ".75" else 0.75,
+        'mass_flow_air': 16.5 if has_ejector_data else 0.0,
+        'length_cooling_tubes_of_the_built_in_bundle': 0.0,
+        'number_cooling_water_passes_of_the_built_in_bundle': 0,
+        'number_cooling_tubes_of_the_built_in_bundle': 0,
+        'temperature_cooling_water_built_in_beam_1_list': [0] * 8,
     }
 
-    calculation_results = calculate_thermal_characteristics(input_params)
+    strategy = BermanStrategy()
+    results = strategy.calculate(base_params)
 
-    generate_markdown_report(input_params, calculation_results, filename="module_berman_report.md")
+    ejector_table_str = ""
+    if has_ejector_data and results['ejector_results']:
+        ejector_res = results['ejector_results']
+        temps = sorted(list(set(r['inlet_water_temperature'] for r in ejector_res)), reverse=True)
+        headers = ['t='] + temps
+        data_1 = {r['inlet_water_temperature']: r['ejector_pressure_kPa'] for r in ejector_res if r['number_of_ejectors'] == 1}
+        data_2 = {r['inlet_water_temperature']: r['ejector_pressure_kPa'] for r in ejector_res if r['number_of_ejectors'] == 2}
+        row1 = ["**Включен 1**"] + [data_1.get(t, 0.0) for t in temps]
+        row2 = ["**Включены**"] + [data_2.get(t, 0.0) for t in temps]
+        ejector_table_str += create_markdown_table(headers, [row1, row2])
+
+    return ejector_table_str
+
+if __name__ == "__main__":
+    final_report = run_simulation(wo=1200, wbc=0, b_label="1", r_raw_value=0.10, has_ejector_data=True)
+
+    with open("report.md", "w", encoding="utf-8") as f:
+        f.write(final_report)
+
+    print("Файл 'report.md' успешно создан")
