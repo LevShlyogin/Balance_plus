@@ -1,64 +1,111 @@
+# generate_berman_report.py
 from utils.berman_strategy import BermanStrategy
 
-def create_markdown_table(headers, rows):
+def create_markdown_table(headers, data_rows):
+    """
+    Создает строку таблицы в формате Markdown.
+
+    :param headers: Список заголовков столбцов.
+    :param data_rows: Список списков, где каждый внутренний список - это строка данных.
+    :return: Строка, представляющая полную таблицу в MD.
+    """
     header_line = "| " + " | ".join(map(str, headers)) + " |"
+    # Выравнивание по левому краю для первого столбца, по правому для остальных
     separator_line = "|:---" + "|---:".join([""] * len(headers)) + "|"
     
     row_lines = []
-    for row in rows:
-        formatted_row = [row[0]] + [f"{val:.3f}" for val in row[1:]]
+    for row in data_rows:
+        # Форматируем только числовые значения (пропуская первый элемент, если это текст)
+        formatted_row = [row[0]] + [f"{val:.3f}" if isinstance(val, (int, float)) else val for val in row[1:]]
         row_lines.append("| " + " | ".join(map(str, formatted_row)) + " |")
         
     return "\n".join([header_line, separator_line] + row_lines)
 
-def run_simulation(wo, wbc, b_label, r_raw_value, has_ejector_data):
-    r_old_units = r_raw_value / 1_000_000
-    r_si_units = r_old_units / 860
+def run_berman_simulation(main_water_flow, built_in_water_flow, num_bundles_label, 
+                          fouling_factor_raw, include_ejector_data):
+    """
+    Настраивает параметры, запускает симуляцию по методу Бермана и форматирует результаты.
+
+    :param main_water_flow: Расход воды в основном пучке.
+    :param built_in_water_flow: Расход воды во встроенном пучке.
+    :param num_bundles_label: Метка количества пучков ("1" или "2").
+    :param fouling_factor_raw: "Сырое" значение коэффициента загрязнения.
+    :param include_ejector_data: Флаг, включать ли расчет эжекторов.
+    :return: Строка с отчетом в формате Markdown.
+    """
+    # Преобразование коэффициента загрязнения из старых единиц в СИ (м²·К/Вт)
+    fouling_factor_old_units = fouling_factor_raw / 1_000_000
+    fouling_factor_si = fouling_factor_old_units / 860
     
-    base_params = {
+    # Сборка словаря с параметрами для передачи в стратегию
+    simulation_params = {
+        # Геометрия и номинальные параметры
         'length_cooling_tubes_of_the_main_bundle': 7.080,
         'number_cooling_water_passes_of_the_main_bundle': 2,
         'number_cooling_tubes_of_the_main_bundle': 1754,
         'enthalpy_flow_path_1': 2175.68, 
         'mass_flow_steam_nom': 16.00,
         'thermal_conductivity_cooling_surface_tube_material': 37.0,
-        'diameter_inside_of_pipes': 22.0,
-        'thickness_pipe_wall': 1.0,
+        'diameter_inside_of_pipes': 22.0, # в мм
+        'thickness_pipe_wall': 1.0,       # в мм
+        'BAP': float(num_bundles_label), # Количество активных пучков
         
-        'coefficient_R_list': [r_si_units],
-        
+        # Списки итеративных параметров
+        'coefficient_R_list': [fouling_factor_si],
         'temperature_cooling_water_1_list': [4, 5, 10, 15, 20, 25, 30, 35],
         'mass_flow_steam_list': [16, 20, 30, 40, 50, 60, 70, 80, 90, 100],
-        'mass_flow_cooling_water_list': [wo], 
-        'mass_flow_cooling_water_built_in_beam_list': [wbc],
-        'BAP': float(b_label) if b_label != ".75" else 0.75,
-        'mass_flow_air': 16.5 if has_ejector_data else 0.0,
+        'mass_flow_cooling_water_list': [main_water_flow], 
+        
+        # Параметры для встроенного пучка (могут быть пустыми)
+        'mass_flow_cooling_water_built_in_beam_list': [built_in_water_flow],
         'length_cooling_tubes_of_the_built_in_bundle': 0.0,
         'number_cooling_water_passes_of_the_built_in_bundle': 0,
         'number_cooling_tubes_of_the_built_in_bundle': 0,
-        'temperature_cooling_water_built_in_beam_1_list': [0] * 8,
+        'temperature_cooling_water_built_in_beam_1_list': [0] * 8, # Заглушка
+
+        # Параметры для расчета эжекторов
+        'mass_flow_air': 16.5 if include_ejector_data else 0.0,
     }
 
+    # Создание и запуск стратегии
     strategy = BermanStrategy()
-    results = strategy.calculate(base_params)
+    results = strategy.calculate(simulation_params)
 
-    ejector_table_str = ""
-    if has_ejector_data and results['ejector_results']:
-        ejector_res = results['ejector_results']
-        temps = sorted(list(set(r['inlet_water_temperature'] for r in ejector_res)), reverse=True)
-        headers = ['t='] + temps
-        data_1 = {r['inlet_water_temperature']: r['ejector_pressure_kPa'] for r in ejector_res if r['number_of_ejectors'] == 1}
-        data_2 = {r['inlet_water_temperature']: r['ejector_pressure_kPa'] for r in ejector_res if r['number_of_ejectors'] == 2}
-        row1 = ["**Включен 1**"] + [data_1.get(t, 0.0) for t in temps]
-        row2 = ["**Включены**"] + [data_2.get(t, 0.0) for t in temps]
-        ejector_table_str += create_markdown_table(headers, [row1, row2])
+    # Форматирование результатов расчета эжекторов в таблицу MD
+    report_string = ""
+    if include_ejector_data and results['ejector_results']:
+        ejector_results = results['ejector_results']
+        # Собираем уникальные температуры и сортируем по убыванию
+        unique_temps = sorted(list(set(r['inlet_water_temperature_C'] for r in ejector_results)), reverse=True)
+        
+        headers = ['Режим работы эжекторов'] + unique_temps
+        
+        # Данные для 1 и 2 работающих эжекторов
+        data_one_ejector = {r['inlet_water_temperature_C']: r['ejector_pressure_kPa'] for r in ejector_results if r['number_of_ejectors'] == 1}
+        data_two_ejectors = {r['inlet_water_temperature_C']: r['ejector_pressure_kPa'] for r in ejector_results if r['number_of_ejectors'] == 2}
+        
+        # Формируем строки для таблицы
+        row_one_ejector = ["**Включен 1 эжектор**"] + [data_one_ejector.get(t, 0.0) for t in unique_temps]
+        row_two_ejectors = ["**Включены 2 эжектора**"] + [data_two_ejectors.get(t, 0.0) for t in unique_temps]
+        
+        report_string += "### Давление всасывания эжекторов, кПа\n\n"
+        report_string += create_markdown_table(headers, [row_one_ejector, row_two_ejectors])
 
-    return ejector_table_str
+    return report_string
 
 if __name__ == "__main__":
-    final_report = run_simulation(wo=1200, wbc=0, b_label="1", r_raw_value=0.10, has_ejector_data=True)
+    # Пример вызова с конкретными параметрами
+    final_report_content = run_berman_simulation(
+        main_water_flow=1200, 
+        built_in_water_flow=0, 
+        num_bundles_label="1", 
+        fouling_factor_raw=0.10, 
+        include_ejector_data=True
+    )
 
-    with open("report.md", "w", encoding="utf-8") as f:
-        f.write(final_report)
+    # Запись сгенерированного отчета в файл
+    report_filename = "berman_report.md"
+    with open(report_filename, "w", encoding="utf-8") as f:
+        f.write(final_report_content)
 
-    print("Файл 'report.md' успешно создан")
+    print(f"Файл '{report_filename}' успешно создан.")

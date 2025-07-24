@@ -1,10 +1,20 @@
 import unittest
 from utils.berman_strategy import BermanStrategy
 
-class TestBermanEjector(unittest.TestCase):
+class TestBermanEjectorPressure(unittest.TestCase):
+    """
+    Тестирует корректность расчета давления всасывания эжекторов
+    в классе BermanStrategy.
+    """
     def setUp(self):
+        """
+        Настраивает общие параметры для тестов перед каждым запуском.
+        """
         self.strategy = BermanStrategy()
-        self.test_params = {
+        
+        # Словарь с параметрами, необходимыми для расчета эжекторов
+        self.simulation_params = {
+            # Геометрия и номинальные режимы (нужны для полной инициализации класса)
             'length_cooling_tubes_of_the_main_bundle': 7.080,
             'number_cooling_water_passes_of_the_main_bundle': 2,
             'number_cooling_tubes_of_the_main_bundle': 1754,
@@ -12,35 +22,47 @@ class TestBermanEjector(unittest.TestCase):
             'thermal_conductivity_cooling_surface_tube_material': 37.0,
             'diameter_inside_of_pipes': 22.0,
             'thickness_pipe_wall': 1.0,
-            'enthalpy_flow_path_1': 520.0,
+            'enthalpy_flow_path_1': 520.0, # Энтальпия (влияет на основной расчет, но не на эжектор)
             'BAP': 1,
+            
+            # Итеративные параметры (значения-заглушки для основного расчета)
             'mass_flow_cooling_water_list': [1200],
-            'temperature_cooling_water_1_list': [4, 5, 10, 15, 20, 25, 30, 35],
             'mass_flow_steam_list': [16],
             'coefficient_R_list': [0.10e-6],
+            
+            # Ключевые параметры для теста эжекторов
+            'temperature_cooling_water_1_list': [4, 5, 10, 15, 20, 25, 30, 35],
             'mass_flow_air': 16.5,
-            'number_ejector': 1,
         }
 
-    def test_ejector_pressure_values(self):
-        results = self.strategy.calculate(self.test_params)
-        all_ejector_results = results['ejector_results']
+    def test_ejector_pressure_calculation(self):
+        """
+        Проверяет, что рассчитанные значения давления всасывания эжекторов
+        совпадают с эталонными для различных температур на входе.
+        """
+        # Запускаем полный расчет, чтобы получить результаты по эжекторам
+        calculation_results = self.strategy.calculate(self.simulation_params)
+        all_ejector_results = calculation_results['ejector_results']
 
-        self.assertIsNotNone(all_ejector_results, "Результаты по эжектору отсутствуют.")
+        self.assertIsNotNone(all_ejector_results, "Секция 'ejector_results' отсутствует в результатах.")
         
-        ejector_results_for_one = [
+        # Отфильтровываем результаты только для одного работающего эжектора
+        results_for_one_ejector = [
             item for item in all_ejector_results if item['number_of_ejectors'] == 1
         ]
         
-        self.assertEqual(len(ejector_results_for_one), len(self.test_params['temperature_cooling_water_1_list']),
-                         "Количество результатов для одного эжектора не совпадает с количеством температур.")
+        # Проверяем, что количество результатов соответствует количеству входных температур
+        self.assertEqual(len(results_for_one_ejector), len(self.simulation_params['temperature_cooling_water_1_list']),
+                         "Количество результатов для одного эжектора не совпадает с количеством заданных температур.")
 
-        ejector_pressure_map = {
-            item['inlet_water_temperature']: item['ejector_pressure_kPa']
-            for item in ejector_results_for_one
+        # Преобразуем список результатов в удобный для проверки словарь {температура: давление}
+        calculated_pressures_map = {
+            item['inlet_water_temperature_C']: item['ejector_pressure_kPa']
+            for item in results_for_one_ejector
         }
 
-        expected_pressures = {
+        # Эталонные значения, с которыми будем сравнивать
+        expected_pressures_map = {
             35: 7.341,
             30: 5.889,
             25: 4.755,
@@ -51,18 +73,19 @@ class TestBermanEjector(unittest.TestCase):
             4: 2.263,
         }
 
-        for temp, expected_pressure in expected_pressures.items():
+        # Сравниваем фактические значения с эталонными для каждой температуры
+        for temp, expected_pressure in expected_pressures_map.items():
             with self.subTest(temperature=temp):
-                self.assertIn(temp, ejector_pressure_map, f"Результат для температуры {temp}°C не найден.")
-                actual_pressure = ejector_pressure_map[temp]
+                self.assertIn(temp, calculated_pressures_map, f"Результат для температуры {temp}°C не найден.")
+                actual_pressure = calculated_pressures_map[temp]
                 self.assertAlmostEqual(
                     actual_pressure,
                     expected_pressure,
-                    places=2,
-                    msg=f"Давление для t={temp}°C не совпадает"
+                    places=2, # Точность до 2-го знака после запятой
+                    msg=f"Давление для t={temp}°C не совпадает с эталоном"
                 )
 
-        print("\nТест: все значения давлений соответствуют эталону.")
+        print("\nТест эжектора: все значения давлений успешно прошли проверку.")
 
 if __name__ == '__main__':
     unittest.main()
