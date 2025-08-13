@@ -181,11 +181,11 @@ SHORT_CODE_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,31}$")
 
 SEED_QUANTITIES = {
     "temperature", "pressure", "mass-flow", "density", "enthalpy",
-    "efficiency", "power", "speed", "torque", "volume-flow", "humidity"
+    "efficiency", "power", "speed", "volume",
 }
 
 SEED_MEDIUMS = {
-    "air", "gas", "water", "steam", "mixture", "mixture-xyz", "fuel", "oil"
+    "air", "gas", "water", "steam"
 }
 
 SEED_LOCATIONS = {
@@ -194,10 +194,10 @@ SEED_LOCATIONS = {
 }
 
 SEED_COMPONENTS = {
-    "compressor", "turbine", "pipe", "pump", "valve", "mixer", "site-1", "site-2"
+    "compressor", "turbine", "pipe", "valve",
 }
 
-SEED_STATES = {"static", "total", "wet", "dry", "mass-basis", "vol-basis"}
+SEED_STATES = {"static", "total", "wet", "dry"}
 SEED_STATISTICS = {"mean", "min", "max", "std", "instant", "integral"}
 
 SEED_METHODS = {"poly", "mapfit", "default"}
@@ -322,17 +322,16 @@ class Database:
     def _seed_units(self):
         # Minimal unit set
         units = [
-            ("K", "temperature"),
-            ("Cel", "temperature"),
-            ("degF", "temperature"),
-            ("Pa", "pressure"),
-            ("kPa", "pressure"),
-            ("bar", "pressure"),
-            ("MPa", "pressure"),
-            ("kg/s", "mass-flow"),
-            ("kg/h", "mass-flow"),
-            ("g/s", "mass-flow"),
-            ("lb/s", "mass-flow"),
+            ("К", "temperature"),
+            ("°С", "temperature"),
+            ("F", "temperature"),
+            ("Па", "pressure"),
+            ("кПа", "pressure"),
+            ("бар", "pressure"),
+            ("МПа", "pressure"),
+            ("кг/с", "mass-flow"),
+            ("кг/ч", "mass-flow"),
+            ("гр/с", "mass-flow")
         ]
         for code, dim in units:
             cur = self._execute("SELECT code FROM UNIT WHERE code=?", (code,))
