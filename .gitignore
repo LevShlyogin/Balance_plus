@@ -5,6 +5,7 @@ __pycache__/
 
 # PyCharm Clion and other
 .idea
+Balance_plus.iml
 
 # virtualenv / pipenv / poetry
 venv/
