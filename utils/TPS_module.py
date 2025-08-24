@@ -14,14 +14,8 @@ class TablePressureStrategy:
         else:
             t_axis = t_axis_raw
             values = values_raw
-            
-        num_t_points = len(t_axis)
-        num_g_points = len(g_axis)
-
-        kx = min(num_t_points - 1, 3)
-        ky = min(num_g_points - 1, 3)
         
-        return interpolate.RectBivariateSpline(t_axis, g_axis, values, kx=kx, ky=ky)
+        return interpolate.RectBivariateSpline(t_axis, g_axis, values, kx=1, ky=1)
 
     def _create_named_interpolator(self, named_data: List) -> interpolate.interp1d:
         t_axis = np.array(named_data[0])
@@ -30,18 +24,23 @@ class TablePressureStrategy:
         return interpolate.interp1d(t_axis, p_axis, bounds_error=False, fill_value="extrapolate")
 
     def calculate(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        temperature_cooling_water_1 = params['temperature_cooling_water_1']
-        mass_flow_flow_path_1 = params['mass_flow_flow_path_1']
-        namet_data = params['NAMET']
-        named_data = params['NAMED']
+        namet_block = params['NAMET']
+        namet_data = namet_block['data']
+        namet_inputs = namet_block['inputs']
+        
+        named_block = params['NAMED']
+        named_data = named_block['data']
+        named_inputs = named_block['inputs']
 
         named_interpolator = self._create_named_interpolator(named_data)
-        pressure_flow_path_1_NAMED = named_interpolator(temperature_cooling_water_1)
+        pressure_flow_path_1_NAMED = named_interpolator(
+            named_inputs['temperature_cooling_water_1']
+        )
         
         namet_interpolator = self._create_namet_interpolator(namet_data)
         pressure_flow_path_1_NAMET = namet_interpolator(
-            temperature_cooling_water_1, 
-            mass_flow_flow_path_1
+            namet_inputs['temperature_cooling_water_1'], 
+            namet_inputs['mass_flow_flow_path_1']
         )[0][0]
         
         if pressure_flow_path_1_NAMET >= pressure_flow_path_1_NAMED:
