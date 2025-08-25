@@ -2,7 +2,7 @@ import math
 import numpy as np
 from scipy.interpolate import RegularGridInterpolator
 from typing import Dict, Any
-from iapws import IAPWS97
+import seuif97
 from uniconv import UnitConverter
 
 from utils.Constants import coefficient_B_const, k_interpolation_data, \
@@ -10,6 +10,12 @@ from utils.Constants import coefficient_B_const, k_interpolation_data, \
 
 class MetroVickersStrategy:
     def __init__(self):
+        self._get_k_from_table_temp = RegularGridInterpolator(
+            (k_interpolation_data["speed_points"], k_interpolation_data["temperature_points"]),
+            np.array(k_interpolation_data["k_values_matrix"]),
+            bounds_error=False, 
+            method="nearest"
+        )
         self._get_heat_of_vaporization = lambda temp: (30 - temp) * 0.582 + 580.4
         self.uc = UnitConverter()
 
@@ -52,14 +58,8 @@ class MetroVickersStrategy:
 
         max_iterations = 20
         tolerance = 0.001
-
-        _get_k_from_table_temp = RegularGridInterpolator(
-            (k_interpolation_data["speed_points"], k_interpolation_data["temperature_points"]),
-            np.array(k_interpolation_data["k_values_matrix"]),
-            bounds_error=False, method="nearest"
-        )
         
-        coefficient_K_temp = _get_k_from_table_temp((speed_cooling_water_const, temperature_cooling_water_average_heating_const)).item() # p.5
+        coefficient_K_temp = self._get_k_from_table_temp((speed_cooling_water_const, temperature_cooling_water_average_heating_const)).item() # p.5
 
         speed_cooling_water = ((mass_flow_cooling_water * number_cooling_water_passes_of_the_main_bundle) / 
                                    (900 * math.pi * (number_cooling_tubes_of_the_main_bundle + 
@@ -72,21 +72,21 @@ class MetroVickersStrategy:
         temperature_cooling_water_average_heating = (temperature_cooling_water_1 + temperature_cooling_water_2) / 2 # p.11
 
          # ==================== ДИАГНОСТИЧЕСКИЙ БЛОК ====================
-        print("\n--- ДИАГНОСТИКА ПЕРЕД ЦИКЛОМ ---")
-        print(f"Расчетная скорость: {speed_cooling_water:.4f} м/с")
-        print(f"Расчетная сред. температура: {temperature_cooling_water_average_heating:.4f} °C")
-        print("---")
-        print(f"Границы таблицы по скорости: от {k_interpolation_data['speed_points'][0]} до {k_interpolation_data['speed_points'][-1]}")
-        print(f"Границы таблицы по температуре: от {k_interpolation_data['temperature_points'][0]} до {k_interpolation_data['temperature_points'][-1]}")
-        print("-------------------------------------\n")
+        # print("\n--- ДИАГНОСТИКА ПЕРЕД ЦИКЛОМ ---")
+        # print(f"Расчетная скорость: {speed_cooling_water:.4f} м/с")
+        # print(f"Расчетная сред. температура: {temperature_cooling_water_average_heating:.4f} °C")
+        # print("---")
+        # print(f"Границы таблицы по скорости: от {k_interpolation_data['speed_points'][0]} до {k_interpolation_data['speed_points'][-1]}")
+        # print(f"Границы таблицы по температуре: от {k_interpolation_data['temperature_points'][0]} до {k_interpolation_data['temperature_points'][-1]}")
+        # print("-------------------------------------\n")
         # ===============================================================
         
         for i in range(max_iterations):   
 
             # ==================== НОВЫЙ ДИАГНОСТИЧЕСКИЙ БЛОК ====================
-            print(f"\n--- Итерация #{i} ---")
-            print(f"speed_cooling_water: значение = {speed_cooling_water}, тип = {type(speed_cooling_water)}")
-            print(f"temperature_cooling_water_average_heating: значение = {temperature_cooling_water_average_heating}, тип = {type(temperature_cooling_water_average_heating)}")
+            # print(f"\n--- Итерация #{i} ---")
+            # print(f"speed_cooling_water: значение = {speed_cooling_water}, тип = {type(speed_cooling_water)}")
+            # print(f"temperature_cooling_water_average_heating: значение = {temperature_cooling_water_average_heating}, тип = {type(temperature_cooling_water_average_heating)}")
             # ====================================================================
 
             _get_k_from_table = RegularGridInterpolator(
@@ -140,8 +140,8 @@ class MetroVickersStrategy:
             to_unit="K",
             parameter_type="temperature"
         )
-        sat_steam = IAPWS97(T=temp_kelvin, x=1)
-        pressure_flow_path_1_mpa = sat_steam.P
+        pressure_flow_path_1_mpa = seuif97.pt(0, temp_kelvin, 4)
+
         pressure_flow_path_1_kgf_cm2 = self.uc.convert(
             pressure_flow_path_1_mpa,
             from_unit="МПа",
