@@ -26,11 +26,11 @@ class TablePressureStrategy:
     def calculate(self, params: Dict[str, Any]) -> Dict[str, Any]:
         namet_block = params['NAMET']
         namet_data = namet_block['data']
-        namet_inputs = namet_block['inputs']
+        namet_inputs = params['inputs']
         
         named_block = params['NAMED']
         named_data = named_block['data']
-        named_inputs = named_block['inputs']
+        named_inputs = params['inputs']
 
         named_interpolator = self._create_named_interpolator(named_data)
         pressure_flow_path_1_NAMED = named_interpolator(

@@ -13,19 +13,16 @@ params = {
                 [3.851, 4.257, 5.299, 6.712, 8.438]
             ]
         ],
-        'inputs': {
-            'temperature_cooling_water_1': 27.0,
-            'mass_flow_flow_path_1': 112.0
-        }
     },
     'NAMED': {
         'data': [
             [15.3, 26.8, 38.4, 49.9, 61.5, 73],
             [0.157, 0.258, 0.469, 0.607, 0.763, 0.919]
         ],
-        'inputs': {
-            'temperature_cooling_water_1': 30.0
-        }
+    },
+    'inputs': {
+        'temperature_cooling_water_1': 30.0,
+        'mass_flow_flow_path_1': 112.0
     }
 }
 
@@ -41,9 +38,9 @@ if __name__ == "__main__":
     
     print("\n--- Промежуточные результаты ---")
     
-    t_namet = params['NAMET']['inputs']['temperature_cooling_water_1']
-    g_namet = params['NAMET']['inputs']['mass_flow_flow_path_1']
-    t_named = params['NAMED']['inputs']['temperature_cooling_water_1']
+    t_namet = params['inputs']['temperature_cooling_water_1']
+    g_namet = params['inputs']['mass_flow_flow_path_1']
+    t_named = params['inputs']['temperature_cooling_water_1']
     
     p_namet = results['pressure_flow_path_1_NAMET']
     p_named = results['pressure_flow_path_1_NAMED']
