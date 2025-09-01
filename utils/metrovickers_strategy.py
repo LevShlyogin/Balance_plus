@@ -41,12 +41,17 @@ class MetroVickersStrategy:
         results = {}
 
         diameter_outside_of_pipes = diameter_inside_of_pipes + 2 * thickness_pipe_wall # p.1
-        area_tube_bundle_surface_total = (math.pi * length_cooling_tubes_of_the_main_bundle * 
-                                          number_cooling_tubes_of_the_main_bundle * 
-                                          diameter_outside_of_pipes * 10e-6) # p.2.1
+        area_tube_bundle_surface_total = (math.pi * length_cooling_tubes_of_the_main_bundle *
+                                          (number_cooling_tubes_of_the_main_bundle + number_cooling_tubes_of_the_built_in_bundle) *
+                                          diameter_outside_of_pipes * 1e-6) # p.2.1
+        
+        # ==================== ДИАГНОСТИЧЕСКИЙ БЛОК ====================
+        #print(math.pi, length_cooling_tubes_of_the_main_bundle, number_cooling_tubes_of_the_main_bundle, diameter_outside_of_pipes)
+        # ==============================================================
+
         area_surface_of_the_air_cooler_tube_bundle = (math.pi * length_cooling_tubes_of_the_main_bundle *
                                                       number_air_cooler_total_pipes *
-                                                      diameter_outside_of_pipes * 10e-6) # p.2.2
+                                                      diameter_outside_of_pipes * 1e-6) # p.2.2
         if area_tube_bundle_surface_total == 0: # Избегаем деления на ноль
             coefficient_Kf = 1.0
         else:
@@ -83,11 +88,11 @@ class MetroVickersStrategy:
         
         for i in range(max_iterations):   
 
-            # ==================== НОВЫЙ ДИАГНОСТИЧЕСКИЙ БЛОК ====================
+            # ==================== ДИАГНОСТИЧЕСКИЙ БЛОК ====================
             # print(f"\n--- Итерация #{i} ---")
             # print(f"speed_cooling_water: значение = {speed_cooling_water}, тип = {type(speed_cooling_water)}")
             # print(f"temperature_cooling_water_average_heating: значение = {temperature_cooling_water_average_heating}, тип = {type(temperature_cooling_water_average_heating)}")
-            # ====================================================================
+            # ==============================================================
 
             _get_k_from_table = RegularGridInterpolator(
                 (k_interpolation_data["speed_points"], k_interpolation_data["temperature_points"]),
@@ -132,15 +137,9 @@ class MetroVickersStrategy:
         
         temperature_relative_underheating = 1 / (math.e ** ((coefficient_Kzag * area_tube_bundle_surface_total) / (mass_flow_cooling_water * 1000)) - 1) # p.14
     
-        temperature_saturation_steam = temperature_cooling_water_2 + temperature_relative_underheating * (temperature_cooling_water_1 + temperature_cooling_water_2) # p.15
+        temperature_saturation_steam = temperature_cooling_water_2 + temperature_relative_underheating * (temperature_cooling_water_2 - temperature_cooling_water_1) # p.15
 
-        temp_kelvin = self.uc.convert(
-            temperature_saturation_steam,
-            from_unit="°C",
-            to_unit="K",
-            parameter_type="temperature"
-        )
-        pressure_flow_path_1_mpa = seuif97.pt(0, temp_kelvin, 4)
+        pressure_flow_path_1_mpa = seuif97.tx(temperature_saturation_steam, 1.0, 0)
 
         pressure_flow_path_1_kgf_cm2 = self.uc.convert(
             pressure_flow_path_1_mpa,
