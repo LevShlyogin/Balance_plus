@@ -2,6 +2,7 @@ import numpy as np
 from scipy.interpolate import RegularGridInterpolator
 from typing import List, Dict, Any
 
+
 class VKUStrategy:
     """
     Класс для расчета давления в воздушно-конденсационной установке (ВКУ).
@@ -27,7 +28,6 @@ class VKUStrategy:
         ]
     ]
 
-
     def __init__(self, mass_flow_steam_nom: float, degree_dryness_steam_nom: float):
         if mass_flow_steam_nom <= 0:
             raise ValueError("Номинальный расход пара (mass_flow_steam_nom) должен быть больше нуля.")
@@ -36,9 +36,8 @@ class VKUStrategy:
 
         self.mass_flow_steam_nom = mass_flow_steam_nom
         self.degree_dryness_steam_nom = degree_dryness_steam_nom
-        
-        self._interpolator = self._create_interpolator()
 
+        self._interpolator = self._create_interpolator()
 
     def _create_interpolator(self) -> RegularGridInterpolator:
         t_air_axis_desc = np.array(self._P_DATA[0])
@@ -53,7 +52,7 @@ class VKUStrategy:
             p_values_reordered = p_values
 
         return RegularGridInterpolator(
-            (g_reduced_axis, t_air_axis_asc), 
+            (g_reduced_axis, t_air_axis_asc),
             p_values_reordered,
             bounds_error=False,
             fill_value=None
@@ -75,7 +74,7 @@ class VKUStrategy:
             Dict[str, float]: Словарь с результатами расчета.
                 - 'pressure_flow_path_1': P1, рассчитанное давление в конденсаторе [кгс/см²].
                 - 'mass_flow_reduced_steam_condencer': Gк_прив, приведенный расход [%].
-        
+
         Raises:
             KeyError: Если в словаре `params` отсутствует обязательный ключ.
         """
@@ -88,8 +87,8 @@ class VKUStrategy:
         t_air = params.get('temperature_air', self._TVOZD_CONST_DEFAULT)
 
         mass_flow_reduced_steam_condencer = (
-            (mass_flow_flow_path_1 / self.mass_flow_steam_nom) *
-            (degree_dryness_flow_path_1 / self.degree_dryness_steam_nom) * 100
+                (mass_flow_flow_path_1 / self.mass_flow_steam_nom) *
+                (degree_dryness_flow_path_1 / self.degree_dryness_steam_nom) * 100
         )
 
         point_to_interpolate = (mass_flow_reduced_steam_condencer, t_air)
