@@ -1,0 +1,64 @@
+version: '3.8'
+
+services:
+  rabbitmq:
+    image: rabbitmq:3.12-management
+    container_name: condenser_rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: condenser_redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  worker:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: condenser_worker
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      CELERY_BROKER_URL: amqp://guest:guest@rabbitmq:5672//
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      GIT_REPO_BASE_PATH: /tmp/condenser_repos
+      LOG_LEVEL: INFO
+    volumes:
+      - ../app:/app/app
+      - condenser_repos:/tmp/condenser_repos
+    restart: unless-stopped
+
+  flower:
+    image: mher/flower:2.0
+    container_name: condenser_flower
+    command: celery --broker=amqp://guest:guest@rabbitmq:5672// flower --port=5555
+    ports:
+      - "5555:5555"
+    depends_on:
+      - rabbitmq
+      - redis
+    environment:
+      CELERY_BROKER_URL: amqp://guest:guest@rabbitmq:5672//
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+
+volumes:
+  condenser_repos:
