@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Condenser Calculation Service - Test UI</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🔧 Condenser Calculation Service</h1>
+            <p class="subtitle">Schema Version 1.2 - Reproducible Snapshot</p>
+        </header>
+
+        <div class="card">
+            <h2>📋 Создание задачи расчёта</h2>
+            
+            <form id="calculationForm">
+                <!-- Meta Information -->
+                <fieldset>
+                    <legend>Meta Information</legend>
+                    
+                    <div class="form-group">
+                        <label for="targetProject">Target Project Path:</label>
+                        <input type="text" id="targetProject" value="project-a" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="commitHash">Input Commit Hash:</label>
+                        <input type="text" id="commitHash" value="abc123def456" required>
+                    </div>
+                </fieldset>
+
+                <!-- Geometry Source -->
+                <fieldset>
+                    <legend>Geometry Source</legend>
+                    
+                    <div class="form-group">
+                        <label for="geomProjectPath">Project Path:</label>
+                        <input type="text" id="geomProjectPath" value="project-a" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="geomCommitHash">Commit Hash:</label>
+                        <input type="text" id="geomCommitHash" value="a1b2c3d4e5f6" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="geomPath">File Path:</label>
+                        <input type="text" id="geomPath" value="geometries/condensers/K-300-240-LMZ.json" required>
+                    </div>
+                </fieldset>
+
+                <!-- Parameters Source -->
+                <fieldset>
+                    <legend>Parameters Source</legend>
+                    
+                    <div class="form-group">
+                        <label for="paramsProjectPath">Project Path:</label>
+                        <input type="text" id="paramsProjectPath" value="project-b-reference" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="paramsCommitHash">Commit Hash:</label>
+                        <input type="text" id="paramsCommitHash" value="e6f7g8h9j0k1" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="paramsPath">File Path (optional):</label>
+                        <input type="text" id="paramsPath" value="parameters/reference.json">
+                    </div>
+                </fieldset>
+
+                <!-- Calculation Strategy -->
+                <fieldset>
+                    <legend>Calculation Strategy</legend>
+                    
+                    <div class="form-group">
+                        <label for="strategy">Strategy:</label>
+                        <select id="strategy" required>
+                            <option value="berman">Berman (С.С. Берман)</option>
+                            <option value="metro_vickers">Metro-Vickers</option>
+                            <option value="vku">VKU (Воздушно-конденсационная установка)</option>
+                            <option value="table_pressure">Table Pressure</option>
+                        </select>
+                    </div>
+                </fieldset>
+
+                <!-- Parameters for Berman -->
+                <fieldset id="bermanParams" class="strategy-params">
+                    <legend>Berman Strategy Parameters</legend>
+                    
+                    <div class="form-group">
+                        <label for="bermanSteamFlow">Mass Flow Steam List (т/ч):</label>
+                        <input type="text" id="bermanSteamFlow" value="850.0, 800.0, 750.0">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="bermanEnthalpy">Enthalpy Flow Path 1 (кДж/кг):</label>
+                        <input type="number" id="bermanEnthalpy" value="2300.5" step="0.1">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="bermanWaterFlow">Mass Flow Cooling Water List (т/ч):</label>
+                        <input type="text" id="bermanWaterFlow" value="40000, 42000, 44000">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="bermanWaterTemp">Temperature Cooling Water 1 List (°C):</label>
+                        <input type="text" id="bermanWaterTemp" value="15.0, 16.0, 17.0">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="bermanCoeffR">Coefficient R List ((м²*К)/Вт):</label>
+                        <input type="text" id="bermanCoeffR" value="0.0001, 0.00015, 0.0002">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="bermanAirFlow">Mass Flow Air (т/ч, optional):</label>
+                        <input type="number" id="bermanAirFlow" value="5.0" step="0.1">
+                    </div>
+                </fieldset>
+
+                <!-- Parameters for Metro-Vickers -->
+                <fieldset id="metroVickersParams" class="strategy-params" style="display: none;">
+                    <legend>Metro-Vickers Strategy Parameters</legend>
+                    
+                    <div class="form-group">
+                        <label for="mvWaterFlow">Mass Flow Cooling Water (т/ч):</label>
+                        <input type="number" id="mvWaterFlow" value="41000" step="1">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="mvWaterTemp">Temperature Cooling Water 1 (°C):</label>
+                        <input type="number" id="mvWaterTemp" value="15.5" step="0.1">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="mvCoeffB">Coefficient b (cleanliness):</label>
+                        <input type="number" id="mvCoeffB" value="1.0" step="0.01" min="0" max="1">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="mvSteamFlow">Mass Flow Flow Path 1 (т/ч):</label>
+                        <input type="number" id="mvSteamFlow" value="850.0" step="0.1">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="mvDryness">Degree Dryness Flow Path 1:</label>
+                        <input type="number" id="mvDryness" value="0.95" step="0.01" min="0" max="1">
+                    </div>
+                </fieldset>
+
+                <!-- Parameters for VKU -->
+                <fieldset id="vkuParams" class="strategy-params" style="display: none;">
+                    <legend>VKU Strategy Parameters</legend>
+                    
+                    <div class="form-group">
+                        <label for="vkuSteamFlow">Mass Flow Flow Path 1 (т/ч):</label>
+                        <input type="number" id="vkuSteamFlow" value="800.0" step="0.1">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="vkuDryness">Degree Dryness Flow Path 1:</label>
+                        <input type="number" id="vkuDryness" value="0.90" step="0.01" min="0" max="1">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="vkuAirTemp">Temperature Air (°C, optional):</label>
+                        <input type="number" id="vkuAirTemp" value="25.0" step="0.1">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="vkuNomSteamFlow">Mass Flow Steam Nom (т/ч):</label>
+                        <input type="number" id="vkuNomSteamFlow" value="850.0" step="0.1">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="vkuNomDryness">Degree Dryness Steam Nom:</label>
+                        <input type="number" id="vkuNomDryness" value="0.95" step="0.01" min="0" max="1">
+                    </div>
+                </fieldset>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">🚀 Запустить расчёт</button>
+                    <button type="button" class="btn btn-secondary" onclick="loadExample()">📄 Загрузить пример</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Task Status -->
+        <div class="card" id="statusCard" style="display: none;">
+            <h2>📊 Статус задачи</h2>
+            <div id="taskStatus" class="status-info">
+                <p><strong>Task ID:</strong> <span id="taskId">-</span></p>
+                <p><strong>Status:</strong> <span id="taskState" class="badge">-</span></p>
+                <p><strong>Progress:</strong></p>
+                <div class="progress-bar">
+                    <div id="progressBar" class="progress-fill"></div>
+                </div>
+            </div>
+            <button class="btn btn-secondary" onclick="checkStatus()">🔄 Обновить статус</button>
+        </div>
+
+        <!-- Results -->
+        <div class="card" id="resultsCard" style="display: none;">
+            <h2>✅ Результаты расчёта</h2>
+            <div id="results" class="results-container">
+                <pre id="resultsJson"></pre>
+            </div>
+            <div class="form-actions">
+                <button class="btn btn-primary" onclick="downloadResults()">💾 Скачать JSON</button>
+                <button class="btn btn-secondary" onclick="resetForm()">🔄 Новый расчёт</button>
+            </div>
+        </div>
+
+        <!-- Logs -->
+        <div class="card">
+            <h2>📝 Логи</h2>
+            <div id="logs" class="logs-container">
+                <div class="log-entry info">Ожидание запуска задачи...</div>
+            </div>
+            <button class="btn btn-secondary" onclick="clearLogs()">🗑️ Очистить логи</button>
+        </div>
+    </div>
+
+    <footer>
+        <p>Condenser Calculation Service v1.2.0 | Schema v1.2 | Balance+ Platform</p>
+    </footer>
+
+    <script src="api.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
