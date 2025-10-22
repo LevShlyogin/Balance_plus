@@ -1,9 +1,9 @@
 [![Версия](https://img.shields.io/badge/version-1.0.0-blue)](/docs/adrs/000-adr-template.md) 
-[![Gitlab CI/CD](https://gitlab.example.com/balance-plus/balance-plus/-/badges/main/pipeline.svg)](https://gitlab.example.com/balance-plus/balance-plus/-/pipelines) 
+[![Статус сборки](https://img.shields.io/gitlab/pipeline-status/your-group/your-project?branch=main)](https://gitlab.com/your-group/your-project/-/pipelines)
 [![Лицензия](https://img.shields.io/badge/license-Proprietary-red)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.10+-blue?logo=python&logoColor=white)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-brightgreen?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
-[![React](https://img.shields.io/badge/React-18+-blue?logo=react&logoColor=white)](https://reactjs.org/)
+[![Vue.js](https://img.shields.io/badge/Vue.js-3.x-brightgreen?logo=vuedotjs&logoColor=white)](https://vuejs.org/)
 [![Kubernetes](https://img.shields.io/badge/Deploy-Kubernetes-blue?logo=kubernetes&logoColor=white)](/docs/architecture/platform/container-orchestration.md)
 
 # **Balance+ IDE**
@@ -29,7 +29,7 @@
 ## 🛠️ Технологический стек
 
 ### Frontend
-*   **Фреймворк:** **React 18+** с **TypeScript**
+*   **Фреймворк:** **Vue** с **TypeScript**
 *   **UI-библиотека:** Material-UI (MUI)
 *   **HTTP-клиент:** Axios
 *   **Управление состоянием:** Redux Toolkit
