@@ -1,6 +1,7 @@
 import unittest
 from utils.VKU_strategy import VKUStrategy
 
+
 class TestVKUStrategy(unittest.TestCase):
     """
     Набор тестов для класса VKUStrategy.
@@ -24,9 +25,9 @@ class TestVKUStrategy(unittest.TestCase):
             'degree_dryness_flow_path_1': 0.92,
             'temperature_air': 30.0
         }
-        
+
         result = self.strategy.calculate(params)
-        
+
         self.assertIsInstance(result, dict)
         self.assertAlmostEqual(result['mass_flow_reduced_steam_condencer'], 100.0, places=5)
         self.assertAlmostEqual(result['pressure_flow_path_1'], self.p_at_100_30, places=7)
@@ -37,7 +38,7 @@ class TestVKUStrategy(unittest.TestCase):
             'mass_flow_flow_path_1': 1250.0,
             'degree_dryness_flow_path_1': 0.92
         }
-        
+
         result = self.strategy.calculate(params)
 
         self.assertAlmostEqual(result['mass_flow_reduced_steam_condencer'], 100.0, places=5)
@@ -47,12 +48,12 @@ class TestVKUStrategy(unittest.TestCase):
         """Тест: Расчет для точки, требующей интерполяции."""
         params = {
             'mass_flow_flow_path_1': 1187.5,
-            'degree_dryness_flow_path_1': 1092.5 / 1187.5, # ~0.92
+            'degree_dryness_flow_path_1': 1092.5 / 1187.5,  # ~0.92
             'temperature_air': 27.5
         }
-        
+
         result = self.strategy.calculate(params)
-        
+
         expected_pressure_approx = 0.08341
         self.assertAlmostEqual(result['mass_flow_reduced_steam_condencer'], 95.0, places=5)
         self.assertAlmostEqual(result['pressure_flow_path_1'], expected_pressure_approx, places=3)
@@ -63,9 +64,10 @@ class TestVKUStrategy(unittest.TestCase):
             'degree_dryness_flow_path_1': 0.92,
             'temperature_air': 20.0
         }
-        
+
         with self.assertRaises(KeyError):
             self.strategy.calculate(params)
+
 
 if __name__ == '__main__':
     unittest.main()
