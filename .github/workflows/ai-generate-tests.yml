@@ -2,19 +2,15 @@
 name: AI Test Generator
 
 on:
-  # Вариант 1: По комментарию в PR
+  # По комментарию в PR
   issue_comment:
     types: [created]
   
-  # Вариант 2: При создании/обновлении PR (опционально)
-  # pull_request:
-  #   types: [opened, synchronize]
-  
-  # Вариант 3: Ручной запуск
+  # Ручной запуск
   workflow_dispatch:
     inputs:
       file_path:
-        description: 'Путь к файлу для генерации тестов (например: src/utils.py)'
+        description: 'Путь к файлу (например: src/utils.py)'
         required: true
         type: string
       test_framework:
@@ -27,7 +23,7 @@ on:
           - unittest
           - jest
           - vitest
-          - go-test
+          - go test
 
 permissions:
   contents: write
@@ -47,7 +43,7 @@ jobs:
     name: Generate Tests (from comment)
     
     steps:
-      - name: React to comment
+      - name: React to comment (eyes)
         uses: actions/github-script@v7
         with:
           script: |
@@ -68,8 +64,31 @@ jobs:
               repo: context.repo.repo,
               pull_number: context.issue.number
             });
-            core.setOutput('head_ref', pr.data.head.ref);
-            core.setOutput('head_sha', pr.data.head.sha);
+            
+            const isFork = pr.data.head.repo.fork;
+            const headRef = pr.data.head.ref;
+            const headSha = pr.data.head.sha;
+            const headRepoOwner = pr.data.head.repo.owner.login;
+            
+            core.setOutput('head_ref', headRef);
+            core.setOutput('head_sha', headSha);
+            core.setOutput('is_fork', isFork);
+            core.setOutput('head_repo_owner', headRepoOwner);
+            
+            console.log(`PR from fork: ${isFork}`);
+            console.log(`Head ref: ${headRef}`);
+
+      - name: Check if fork
+        if: steps.pr.outputs.is_fork == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: '⚠️ **AI Test Generator:** Не могу пушить в fork-репозиторий. Создам отдельный PR с тестами.'
+            });
 
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -86,14 +105,15 @@ jobs:
         run: pip install requests PyGithub
 
       - name: Get changed files
-        id: files
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh pr view ${{ github.event.issue.number }} --json files -q '.files[].path' > changed_files.txt
+          echo "Changed files:"
           cat changed_files.txt
 
       - name: Generate tests
+        id: generate
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -101,6 +121,7 @@ jobs:
           REPO_NAME: ${{ github.repository }}
           HEAD_REF: ${{ steps.pr.outputs.head_ref }}
           COMMENT_BODY: ${{ github.event.comment.body }}
+          IS_FORK: ${{ steps.pr.outputs.is_fork }}
         run: python .github/scripts/ai_test_generator.py
 
       - name: React success
@@ -113,6 +134,25 @@ jobs:
               repo: context.repo.repo,
               comment_id: context.payload.comment.id,
               content: 'rocket'
+            });
+
+      - name: React failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.reactions.createForIssueComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: context.payload.comment.id,
+              content: 'confused'
+            });
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: '❌ **AI Test Generator:** Произошла ошибка при генерации тестов. Проверьте логи workflow.'
             });
 
   # ═══════════════════════════════════════════════════════════
@@ -157,6 +197,11 @@ jobs:
             **Исходный файл:** `${{ inputs.file_path }}`
             **Фреймворк:** `${{ inputs.test_framework }}`
             
-            > ⚠️ Проверьте тесты перед мержем — AI может ошибаться!
+            ### Checklist
+            - [ ] Проверить корректность тестов
+            - [ ] Запустить тесты локально
+            - [ ] Убедиться что нет дублирования с существующими тестами
+            
+            > ⚠️ **Внимание:** Тесты сгенерированы AI и могут содержать ошибки!
           branch: ai-tests/${{ github.run_id }}
           delete-branch: true
