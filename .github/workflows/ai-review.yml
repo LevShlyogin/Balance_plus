@@ -1,59 +1,47 @@
+# .github/workflows/ai-review.yml
 name: AI Code Review (Grok)
-
-permissions:
-  contents: read
-  pull-requests: write
 
 on:
   pull_request:
     types: [opened, synchronize, reopened]
 
+permissions:
+  contents: read
+  pull-requests: write
+
 jobs:
   review:
     runs-on: ubuntu-latest
+    name: Grok Code Review
+    
     steps:
-      - name: Checkout Repo
-        uses: actions/checkout@v3
-
-      - name: AI Code Reviewer
-        uses: anc95/ChatGPT-CodeReview@main
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Убедись, что секрет называется именно так, как ты его создал
-          OPENAI_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      - name: Checkout repository
+        uses: actions/checkout@v4
         with:
-          # Базовый URL для OpenRouter
-          openai_api_base: "https://openrouter.ai/api/v1"
+          fetch-depth: 0
           
-          # Твоя выбранная бесплатная модель
-          MODEL: "x-ai/grok-4.1-fast:free"
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
           
-          # Настройка температуры (0 - строго и точно, 1 - креативно). 
-          # Для кода лучше ставить пониже.
-          openai_temperature: 0.2
+      - name: Install dependencies
+        run: pip install requests PyGithub
           
-          # СИСТЕМНЫЙ ПРОМТ (Настроен на русский язык и строгие критерии)
-          PROMPT: |
-            Ты — Senior Software Architect и эксперт по кибербезопасности. Твоя задача — провести код-ревью изменений (diff) в Pull Request.
-            
-            Ты работаешь с моделью xAI Grok, поэтому используй свой огромный контекст для анализа связей в коде.
-            
-            ТВОИ ПРИОРИТЕТЫ:
-            1. 🛡️ **БЕЗОПАСНОСТЬ (Критично)**: Ищи SQL-инъекции, XSS, утечки данных, слабые места в авторизации.
-            2. 🏗️ **АРХИТЕКТУРА И SOLID**: Код должен быть чистым, поддерживаемым и расширяемым.
-            3. 🚀 **ПРОИЗВОДИТЕЛЬНОСТЬ**: Указывай на O(n^2) в циклах, утечки памяти или лишние запросы к БД.
-            4. 🧹 **ЧИСТОТА КОДА**: Нейминг переменных, отсутствие лишнего кода (dead code).
-            
-            ФОРМАТ ОТВЕТА (СТРОГО НА РУССКОМ ЯЗЫКЕ):
-            - Используй Markdown для форматирования.
-            - Если замечаний нет, напиши: "✅ **LGTM! Код выглядит отлично.**" и добавь короткий позитивный комментарий.
-            - Если есть проблемы, разбей их по уровням:
-              - 🔴 **КРИТИЧНО**: Баги, уязвимости, ломающие изменения.
-              - 🟡 **ПРЕДУПРЕЖДЕНИЕ**: Плохие практики, оптимизация.
-              - 🔵 **СОВЕТ**: Как можно сделать красивее (вкусовщина).
-            - Обязательно приводи примеры кода: "Как сейчас" -> "Как лучше".
-            
-            Не объясняй, что делает код, если в этом нет ошибки. Пиши кратко и по делу.
-            
-          # Игнорируем файлы, которые не нужно читать (логи, лок-файлы, картинки)
-          ignore_patterns: "yarn.lock,package-lock.json,*.lock,*.png,*.jpg,*.svg,dist/*"
+      - name: Get PR diff
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr diff ${{ github.event.pull_request.number }} > pr_diff.txt
+          gh pr view ${{ github.event.pull_request.number }} --json files -q '.files[].path' > changed_files.txt
+          
+      - name: Run AI Review
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO_NAME: ${{ github.repository }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+        run: python .github/scripts/ai_reviewer.py
