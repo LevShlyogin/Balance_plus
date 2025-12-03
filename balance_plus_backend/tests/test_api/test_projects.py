@@ -1,1 +1,0 @@
-# TODO: Тесты API для /projects 
