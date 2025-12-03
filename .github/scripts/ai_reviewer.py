@@ -1,6 +1,5 @@
 # .github/scripts/ai_reviewer.py
 import os
-import json
 import requests
 from github import Github
 from pathlib import Path
@@ -125,3 +124,52 @@ def main():
 ---
 
 **Изменённые файлы:**
+{changed_files}
+
+text
+
+
+**Diff:**
+```diff
+{truncate_diff(diff)}
+Проведи код-ревью этого PR.
+"""
+
+text
+
+# Вызываем API
+print("🤖 Calling Grok via OpenRouter...")
+
+try:
+    review_text = call_openrouter(system_prompt, user_prompt)
+    print("✅ Got review from Grok")
+except Exception as e:
+    review_text = f"❌ **Ошибка при генерации ревью:**\n\n```\n{e}\n```"
+    print(f"❌ Error: {e}")
+
+# Постим комментарий
+print("📤 Posting comment...")
+
+try:
+    gh = Github(github_token)
+    repo = gh.get_repo(repo_name)
+    pr = repo.get_pull(pr_number)
+    
+    comment = f"""## 🤖 AI Code Review
+{review_text}
+
+<sub>Автоматический ревью от Grok 4.1 | Это рекомендации ИИ — решение за человеком</sub>
+"""
+
+text
+
+    pr.create_issue_comment(comment)
+    print("✅ Comment posted!")
+    
+except Exception as e:
+    print(f"❌ Failed to post comment: {e}")
+    return 1
+
+return 0
+if name == "main":
+exit(main())
