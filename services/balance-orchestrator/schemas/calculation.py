@@ -3,6 +3,7 @@ from typing import Any, Dict, Optional
 
 class CalculationSaveRequest(BaseModel):
     task_iid: int
+    project_id: int
     app_type: str            # например 'valves'
     input_data: Dict[str, Any]
     output_data: Dict[str, Any]

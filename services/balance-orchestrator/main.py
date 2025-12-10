@@ -2,7 +2,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from api.routes import health, geometries, tasks, user, calculations
+from api.routes import health, geometries, tasks, user, calculations, projects
 
 app = FastAPI(
     title="Balance+ Orchestrator",
@@ -21,9 +21,10 @@ app.add_middleware(
 # Подключаем роуты
 app.include_router(health.router)
 app.include_router(geometries.router, prefix="/api/v1")
-app.include_router(tasks.router, prefix="/api/v1")  # ← добавили
+app.include_router(tasks.router, prefix="/api/v1")
 app.include_router(user.router, prefix="/api/v1")
 app.include_router(calculations.router, prefix="/api/v1")
+app.include_router(projects.router, prefix="/api/v1")
 
 
 @app.get("/")

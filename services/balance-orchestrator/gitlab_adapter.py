@@ -1,5 +1,6 @@
 # gitlab_adapter.py — ДОПОЛНЯЕМ существующий файл
 import os
+import time
 import gitlab
 from gitlab.exceptions import GitlabGetError
 from dotenv import load_dotenv
@@ -9,7 +10,8 @@ load_dotenv()
 
 class GitLabAdapter:
     # КЕШ ДЛЯ ПРОЕКТОВ (Чтобы не бомбить API)
-    _projects_cache: dict[int, any] = {}
+    # Структура: { id: (project_obj, timestamp) }
+    _projects_cache: dict[int, tuple] = {}
 
     def __init__(self):
         self.url = os.getenv("GITLAB_URL")
@@ -22,6 +24,7 @@ class GitLabAdapter:
         self.gl = gitlab.Gitlab(self.url, private_token=self.token, ssl_verify=False)
         self._project = None
         self._default_branch = None
+        self.CACHE_TTL = 300  # Время жизни кеша: 5 минут (300 сек)
 
     def check_connection(self) -> str:
         try:
@@ -42,12 +45,19 @@ class GitLabAdapter:
         return self._project
 
     def get_project_by_id(self, project_id: int):
-        """Получает проект по ID с кешированием"""
+        """Получает проект по ID с кешированием и TTL"""
+        now = time.time()
+        
+        # Если есть в кеше и не протух
         if project_id in self._projects_cache:
-            return self._projects_cache[project_id]
-
+            project, timestamp = self._projects_cache[project_id]
+            if now - timestamp < self.CACHE_TTL:
+                return project
+        
+        # Иначе запрашиваем свежий
+        print(f"🔄 Обновляю кеш для проекта ID {project_id}...")
         project = self.gl.projects.get(project_id)
-        self._projects_cache[project_id] = project
+        self._projects_cache[project_id] = (project, now)
         return project
 
     @property
@@ -239,13 +249,30 @@ class GitLabAdapter:
             "web_url": issue.web_url,
         }
 
+    def get_user_projects(self, search: str = "") -> list[dict]:
+        """Возвращает проекты пользователя (для выпадающего списка)"""
+        # membership=True: только те, где я участник
+        # order_by='last_activity_at': сначала те, с которыми недавно работали (удобно)
+        projects = self.gl.projects.list(
+            membership=True,
+            search=search,
+            order_by='last_activity_at',
+            min_access_level=30,  # Developer и выше (чтобы мог создавать задачи)
+            simple=True,
+            get_all=False,  # Не тянем все 100500, хватит первых 20-50 для саджеста
+            per_page=50
+        )
+        return [{"id": p.id, "name": p.name_with_namespace, "web_url": p.web_url} for p in projects]
+
     def create_issue(self, title: str, description: str = "", labels: list[str] | None = None, project_id: int | None = None) -> dict:
         """Создаёт новую задачу"""
+        # Если ID передан - берем конкретный проект. Иначе - дефолтный из ENV (для совместимости)
         project = self.get_project_by_id(project_id) if project_id else self.get_project()
         issue = project.issues.create({
             "title": title,
             "description": description,
             "labels": labels or [],
+            "assignee_ids": [self.gl.user.id]  # Сразу назначаем на себя
         })
 
         return {

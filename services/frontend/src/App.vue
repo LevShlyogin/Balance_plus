@@ -11,31 +11,77 @@ import WsaWrapper from './components/apps/WsaWrapper.vue'
 // --- ТИПЫ ---
 interface Task {
   iid: number
+  project_id: number
+  project_name: string
+  created_at: string
+  business_status: { text: string; color: string; key: string }
   title: string
   description?: string
   formatted_date: string
-  calc_type: string
-  turbine_project: string
+  calc_type: string | null
+  calc_type_human?: string
+  bureau?: { code: string; name: string; color: string } | null
   labels: string[]
   state: string
   due_date?: string
 }
 
+interface Bureau {
+  id: string
+  label: string
+  color: string
+  modules: { id: string; label: string }[]
+}
+
 // --- CONSTANTS ---
-const TABS = [
-  { id: 'all', label: 'Все задачи', tag: null },
-  { id: 'valves', label: 'Штоки клапанов', tag: 'valves' },
-  { id: 'balance', label: 'Балансы', tag: 'balance' },
-  { id: 'triangles', label: 'Треугольники скоростей', tag: 'triangles' },
-  { id: 'thermal', label: 'Тепловые расчёты', tag: 'thermal' },
-  { id: 'strength', label: 'Прочность', tag: 'strength' },
-  { id: 'vibration', label: 'Вибрация', tag: 'vibration' },
+const BUREAUS: Bureau[] = [
+  {
+    id: 'btr',
+    label: 'БТР',
+    color: '#1976D2',
+    modules: [
+      { id: 'btr-balances', label: 'Балансы' },
+      { id: 'btr-velocity-triangles', label: 'Треугольники скоростей' },
+      { id: 'btr-steam-distribution', label: 'Парораспределение' },
+      { id: 'btr-condensers', label: 'Конденсаторы' },
+      { id: 'btr-valve-stems', label: 'Штоки клапанов' },
+      { id: 'btr-aux-calcs', label: 'Вспомогательные' },
+      { id: 'btr-wsprop', label: 'WSProp' },
+      { id: 'btr-gasdynamics-ansys', label: 'Газодинамика (Ansys)' },
+      { id: 'btr-thermal-expansions', label: 'Тепловые перемещения' }
+    ]
+  },
+  {
+    id: 'bpr',
+    label: 'БПР',
+    color: '#26A69A',
+    modules: [
+      { id: 'bpr-flowpath-design', label: 'Проектирование ПЧ' },
+      { id: 'bpr-cylinders', label: 'Цилиндры' },
+      { id: 'bpr-heat-exchangers', label: 'Теплообменники' },
+      { id: 'bpr-materials', label: 'Материалы' },
+      { id: 'bpr-acts', label: 'Акты' }
+    ]
+  },
+  {
+    id: 'bvp',
+    label: 'БВП',
+    color: '#7E57C2',
+    modules: [
+      { id: 'bvp-static-shaft-deflection', label: 'Прогибы' },
+      { id: 'bvp-static-alignment', label: 'Центровка' },
+      { id: 'bvp-dynamic-bending-vibration', label: 'Изгибные колебания' },
+      { id: 'bvp-dynamic-torsional-vibration', label: 'Крутильные колебания' },
+      { id: 'bvp-working-blades', label: 'Рабочие лопатки' }
+    ]
+  }
 ]
 
 // --- STATE ---
 const currentUser = ref({ name: 'Загрузка...', avatar_url: '' })
 const tasks = ref<Task[]>([])
-const activeTabId = ref('all')
+const activeBureauId = ref<string | null>(null) // null = Все задачи
+const activeModuleId = ref<string | null>(null) // null = Все модули выбранного бюро
 const showCreateModal = ref(false)
 const searchQuery = ref('')
 const loading = ref(true)
@@ -43,6 +89,7 @@ const sortOrder = ref<'desc' | 'asc'>('desc')
 
 const activeView = ref<'dashboard' | 'app-valves'>('dashboard')
 const currentTaskIid = ref(0)
+const currentProjectId = ref(0)
 
 // --- API ---
 const fetchData = async () => {
@@ -59,39 +106,87 @@ const fetchData = async () => {
 
 const createTask = async (data: any) => {
   try {
-    await axios.post('/api/v1/tasks', {
+    const res = await axios.post('/api/v1/tasks', {
       title: data.title,
       description: data.description,
-      labels: data.labels
+      labels: data.labels,
+      project_id: data.project_id
     })
+
+    const newTaskId = res.data.iid
+    const newProjectId = data.project_id
+
+    // Автоматически создаём ветку после создания задачи
+    await axios.post(`/api/v1/tasks/${newTaskId}/branch`, {
+      project_id: newProjectId
+    })
+
+    alert(`✅ Задача #${newTaskId} создана, ветка готова!`)
     showCreateModal.value = false
     await fetchData()
   } catch (e: any) {
-    alert('Ошибка: ' + e.message)
+    alert('Ошибка: ' + (e.response?.data?.detail || e.message))
   }
 }
 
 const handleTaskClick = (task: Task) => {
-  if (task.calc_type === 'valves' || task.labels.includes('valves') || task.title.toLowerCase().includes('шток')) {
+  // Обновлено для новых кодов модулей
+  if (task.calc_type === 'btr-valve-stems' || task.calc_type === 'valves' || task.labels.includes('valves') || task.title.toLowerCase().includes('шток')) {
     if (!confirm(`Открыть приложение "Расчёт штоков" для задачи #${task.iid}?`)) return;
     currentTaskIid.value = task.iid
+    currentProjectId.value = task.project_id
     activeView.value = 'app-valves'
   } else {
-    alert(`Для типа "${task.calc_type}" интерфейс еще не готов.`)
+    alert(`Для типа "${task.calc_type || 'неизвестно'}" интерфейс еще не готов.`)
+  }
+}
+
+const handleSubmitTask = async (task: Task) => {
+  if (!confirm(`Вы уверены, что хотите завершить задачу "${task.title}" и создать Merge Request?`)) return;
+  
+  try {
+    loading.value = true
+    const res = await axios.post(`/api/v1/tasks/${task.iid}/submit`, null, { params: { project_id: task.project_id } })
+    alert(`✅ Merge Request создан!\nСсылка: ${res.data.mr_url}`)
+    // Можно открыть ссылку в новой вкладке
+    window.open(res.data.mr_url, '_blank')
+  } catch (e: any) {
+    alert('Ошибка: ' + (e.response?.data?.detail || e.message))
+  } finally {
+    loading.value = false
   }
 }
 
 // --- COMPUTED ---
+const activeBureau = computed(() => {
+  if (!activeBureauId.value) return null
+  return BUREAUS.find(b => b.id === activeBureauId.value) || null
+})
+
 const filteredTasks = computed(() => {
   let result = [...tasks.value]
-  const activeTab = TABS.find(t => t.id === activeTabId.value)
-  if (activeTab && activeTab.tag) {
-    result = result.filter(t => t.calc_type === activeTab.tag)
+
+  // 1. Фильтр по Бюро
+  if (activeBureauId.value) {
+    result = result.filter(t => t.bureau?.code === activeBureauId.value)
   }
+
+  // 2. Фильтр по Модулю
+  if (activeModuleId.value) {
+    result = result.filter(t => t.calc_type === activeModuleId.value)
+  }
+
+  // 3. Поиск
   if (searchQuery.value) {
     const q = searchQuery.value.toLowerCase()
-    result = result.filter(t => t.title.toLowerCase().includes(q) || t.turbine_project.toLowerCase().includes(q))
+    result = result.filter(t => 
+      t.title.toLowerCase().includes(q) || 
+      t.project_name.toLowerCase().includes(q) ||
+      (t.calc_type_human && t.calc_type_human.toLowerCase().includes(q))
+    )
   }
+
+  // 4. Сортировка
   result.sort((a, b) => {
     const dateA = new Date(a.created_at).getTime()
     const dateB = new Date(b.created_at).getTime()
@@ -99,6 +194,11 @@ const filteredTasks = computed(() => {
   })
   return result
 })
+
+const selectBureau = (bureauId: string | null) => {
+  activeBureauId.value = bureauId
+  activeModuleId.value = null // Сбрасываем модуль при смене бюро
+}
 
 const toggleSort = () => {
   sortOrder.value = sortOrder.value === 'asc' ? 'desc' : 'asc'
@@ -117,15 +217,51 @@ onMounted(fetchData)
       <Header :user="currentUser" />
       
       <main class="main-container">
-        <nav class="main-nav">
+        <!-- УРОВЕНЬ 1: БЮРО -->
+        <nav class="bureau-nav">
           <a 
-            v-for="tab in TABS" :key="tab.id" href="#" class="nav-link"
-            :class="{ active: activeTabId === tab.id }"
-            @click.prevent="activeTabId = tab.id"
+            href="#" 
+            class="nav-link" 
+            :class="{ active: activeBureauId === null }"
+            @click.prevent="selectBureau(null)"
           >
-            {{ tab.label }}
+            Все задачи
+          </a>
+          
+          <a 
+            v-for="b in BUREAUS" :key="b.id" 
+            href="#"
+            class="nav-link"
+            :class="{ active: activeBureauId === b.id }"
+            :style="{ 
+              borderColor: activeBureauId === b.id ? b.color : 'transparent', 
+              color: activeBureauId === b.id ? b.color : 'inherit' 
+            }"
+            @click.prevent="selectBureau(b.id)"
+          >
+            {{ b.label }}
           </a>
         </nav>
+
+        <!-- УРОВЕНЬ 2: МОДУЛИ (Показываем только если выбрано Бюро) -->
+        <div v-if="activeBureau" class="modules-nav">
+          <button 
+            class="module-chip" 
+            :class="{ active: activeModuleId === null }"
+            @click="activeModuleId = null"
+          >
+            Все модули
+          </button>
+          
+          <button 
+            v-for="mod in activeBureau.modules" :key="mod.id"
+            class="module-chip"
+            :class="{ active: activeModuleId === mod.id }"
+            @click="activeModuleId = mod.id"
+          >
+            {{ mod.label }}
+          </button>
+        </div>
 
         <div class="actions-row">
           <div class="search-input">
@@ -142,6 +278,7 @@ onMounted(fetchData)
           <TaskCard 
             v-for="task in filteredTasks" :key="task.iid" :task="task"
             @click="handleTaskClick(task)"
+            @submit="handleSubmitTask"  
           />
         </div>
       </main>
@@ -150,7 +287,8 @@ onMounted(fetchData)
     <!-- БЛОК 2: ПРИЛОЖЕНИЕ (ПОЛНЫЙ ЭКРАН ПОВЕРХ ВСЕГО) -->
     <div v-else-if="activeView === 'app-valves'" class="fullscreen-app">
       <WsaWrapper 
-        :taskIid="currentTaskIid" 
+        :taskIid="currentTaskIid"
+        :projectId="currentProjectId"
         @back="activeView = 'dashboard'" 
       />
     </div>
@@ -210,10 +348,10 @@ body {
   flex: 1;
 }
 
-.main-nav { 
+.bureau-nav { 
   display: flex; 
   gap: 30px; 
-  margin-bottom: 30px; 
+  margin-bottom: 20px; 
   border-bottom: 1px solid #eee; 
   overflow-x: auto; /* Если меню длинное, добавляем скролл */
 }
@@ -224,7 +362,37 @@ body {
   transition: all 0.2s; white-space: nowrap; 
 }
 .nav-link:hover { color: #666; }
-.nav-link.active { font-weight: 600; color: #000; border-bottom: 2px solid #000; }
+.nav-link.active { font-weight: 600; border-bottom-width: 2px; border-bottom-style: solid; }
+
+.modules-nav {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 30px;
+  flex-wrap: wrap;
+}
+
+.module-chip {
+  padding: 8px 16px;
+  border: 1px solid #D9D9D9;
+  border-radius: 20px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 14px;
+  font-family: inherit;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.module-chip:hover {
+  background: #F5F5F5;
+  border-color: #999;
+}
+
+.module-chip.active {
+  background: #000;
+  color: #fff;
+  border-color: #000;
+}
 
 .actions-row { display: flex; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }
 

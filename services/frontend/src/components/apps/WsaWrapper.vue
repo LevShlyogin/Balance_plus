@@ -20,19 +20,53 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import axios from 'axios'
 
-const props = defineProps<{ taskIid: number }>()
+const props = defineProps<{ taskIid: number, projectId: number }>()
 const emit = defineEmits(['back'])
 
 const saving = ref(false)
+const iframeRef = ref<HTMLIFrameElement | null>(null)
 // ВАЖНО: Убедитесь, что IP правильный
 const EXTERNAL_APP_URL = 'http://10.202.220.143:5252' 
 
 const iframeSrc = computed(() => {
-  return `${EXTERNAL_APP_URL}?taskId=${props.taskIid}&embedded=true`
+  return `${EXTERNAL_APP_URL}?taskId=${props.taskIid}&projectId=${props.projectId}&embedded=true`
 })
 
+// 1. Функция загрузки данных
+const restoreState = async () => {
+  try {
+    const res = await axios.get('/api/v1/calculations/latest', {
+      params: { task_iid: props.taskIid, project_id: props.projectId, app_type: 'valves' }
+    })
+    
+    if (res.data.found) {
+      console.log("✅ Найдены сохраненные данные, отправляем в приложение...")
+      
+      // Отправляем данные в Iframe
+      const message = {
+        type: 'WSA_RESTORE_STATE',
+        payload: {
+          input: res.data.input_data,
+          output: res.data.output_data
+        }
+      }
+      
+      // Важно: отправляем только когда iframe загрузился
+      iframeRef.value?.contentWindow?.postMessage(message, '*')
+    }
+  } catch (e) {
+    console.warn("Нет сохраненных данных или ошибка:", e)
+  }
+}
+
+// 2. Слушаем, когда Iframe скажет "Я готов"
 const handleMessage = async (event: MessageEvent) => {
   const { type, payload } = event.data
+
+  // Новое событие: приложение загрузилось
+  if (type === 'WSA_READY') {
+    await restoreState()
+  }
 
   if (type === 'WSA_CALCULATION_COMPLETE') {
     await saveResult(payload)
@@ -48,6 +82,7 @@ const saveResult = async (data: any) => {
   try {
     const requestPayload = {
       task_iid: props.taskIid,
+      project_id: props.projectId,
       app_type: 'valves', 
       input_data: data.input,
       output_data: data.output,
