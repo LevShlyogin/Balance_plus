@@ -7,29 +7,25 @@ from slugify import slugify
 
 router = APIRouter(prefix="/calculations", tags=["Calculations"])
 
+
 @router.post("/save")
 async def save_calculation_result(req: CalculationSaveRequest):
     """
-    Сохраняет результаты расчёта в Git.
-    Путь: calculations/{app_type}/{timestamp}/
+    Сохраняет результаты расчёта в ветку задачи.
     """
     try:
-        # 1. Получаем задачу для формирования имени ветки
-        issue = gitlab_client.get_issue(req.task_iid, req.project_id)
+        # 1. Ищем РЕАЛЬНУЮ ветку задачи (Умный поиск)
+        # Передаем project_id, так как мы теперь в мульти-репо
+        branch_name = gitlab_client.find_branch_by_issue_iid(req.task_iid, req.project_id)
         
-        safe_slug = slugify(issue["title"], max_length=40) or "task"
-        branch_name = f"issue/{req.task_iid}-{safe_slug}"
-        
-        # Проверка существования ветки
-        if not gitlab_client.branch_exists(branch_name, project_id=req.project_id):
-             raise HTTPException(status_code=400, detail=f"Ветка {branch_name} не найдена. Начните работу над задачей.")
+        if not branch_name:
+             raise HTTPException(status_code=400, detail=f"Ветка для задачи #{req.task_iid} не найдена в GitLab. Убедитесь, что работа над задачей начата.")
 
-        # 2. Формируем уникальную папку для этого запуска расчёта
-        # Если в output_data есть timestamp, берем его, иначе текущий
+        print(f"💾 Сохраняем в ветку: {branch_name} (Проект ID: {req.project_id})")
+
+        # 2. Формируем путь
         ts_str = req.output_data.get('calc_timestamp') or datetime.now().isoformat()
-        # Делаем timestamp безопасным для имени папки (убираем двоеточия)
         folder_name = ts_str.replace(':', '-').replace('.', '-')
-        
         base_path = f"calculations/{req.app_type}/{folder_name}"
         
         # 3. Готовим файлы
@@ -38,12 +34,12 @@ async def save_calculation_result(req: CalculationSaveRequest):
             f"{base_path}/result.json": json.dumps(req.output_data, indent=2, ensure_ascii=False)
         }
 
-        # 4. Коммитим
+        # 4. Коммитим (с указанием project_id!)
         commit = gitlab_client.create_commit_multiple(
             files=files_to_commit,
             commit_message=f"Calc Result: {req.commit_message}",
             branch=branch_name,
-            project_id=req.project_id
+            project_id=req.project_id # <--- Важно!
         )
 
         return {
@@ -55,6 +51,9 @@ async def save_calculation_result(req: CalculationSaveRequest):
 
     except Exception as e:
         print(f"Error saving calculation: {e}")
+        # Если это HTTPException, пробрасываем его как есть
+        if isinstance(e, HTTPException):
+            raise e
         raise HTTPException(status_code=500, detail=str(e))
 
 
