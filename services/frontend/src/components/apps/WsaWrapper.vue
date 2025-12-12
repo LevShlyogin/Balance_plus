@@ -30,7 +30,7 @@ const EXTERNAL_APP_URL = 'http://127.0.0.1:5252'
 
 const iframeSrc = computed(() => {
   // Добавляем timestamp, чтобы избежать кеширования iframe
-  return `${EXTERNAL_APP_URL}/calculator?taskId=${props.taskIid}&projectId=${props.projectId}&embedded=true&ts=${Date.now()}`
+  return `${EXTERNAL_APP_URL}/calculator?embedded=true`
 })
 
 // 1. Функция загрузки данных
