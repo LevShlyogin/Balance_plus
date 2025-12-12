@@ -19,31 +19,31 @@
 import {ref, computed, onMounted, onUnmounted} from 'vue'
 import axios from 'axios'
 
-const props = defineProps<{ taskIid: number, projectId: number }>()
+const props = defineProps<{ taskIid: number | string, projectId: number | string }>()
 const emit = defineEmits(['back'])
 
 const saving = ref(false)
 const iframeRef = ref<HTMLIFrameElement | null>(null)
 
-// ВАЖНО: Это адрес, где запущен фронтенд штоков (Stock Calc)
 const EXTERNAL_APP_URL = 'http://10.202.220.143:5252/calculator'
 
 const iframeSrc = computed(() => {
-  // Добавляем timestamp, чтобы избежать кеширования iframe
   return `${EXTERNAL_APP_URL}?taskId=${props.taskIid}&projectId=${props.projectId}&embedded=true`
 })
 
-// 1. Функция загрузки данных
 const restoreState = async () => {
   try {
     const res = await axios.get('/api/v1/calculations/latest', {
-      params: {task_iid: props.taskIid, project_id: props.projectId, app_type: 'valves'}
+      params: {
+        task_iid: props.taskIid, 
+        project_id: props.projectId, 
+        app_type: 'valves'
+      }
     })
 
     if (res.data && res.data.found) {
       console.log("✅ Найдены сохраненные данные, отправляем в приложение...")
 
-      // Отправляем данные в Iframe
       const message = {
         type: 'WSA_RESTORE_STATE',
         payload: {
@@ -52,7 +52,6 @@ const restoreState = async () => {
         }
       }
 
-      // Отправляем сообщение внутрь iframe
       iframeRef.value?.contentWindow?.postMessage(message, '*')
     } else {
       console.log("ℹ️ Сохраненных данных нет, начинаем с чистого листа.")
@@ -62,25 +61,18 @@ const restoreState = async () => {
   }
 }
 
-// 2. Слушаем сообщения от Iframe
 const handleMessage = async (event: MessageEvent) => {
-  // Проверка origin (опционально, для безопасности в будущем)
-  // if (event.origin !== new URL(EXTERNAL_APP_URL).origin) return;
-
   const {type, payload} = event.data
 
-  // Приложение загрузилось и готово
   if (type === 'WSA_READY') {
     console.log("🔹 Iframe готов (WSA_READY), пробуем восстановить состояние...")
     await restoreState()
   }
 
-  // Приложение закончило расчет
   if (type === 'WSA_CALCULATION_COMPLETE') {
     await saveResult(payload)
   }
 
-  // Приложение просит закрыться
   if (type === 'WSA_CLOSE') {
     emit('back')
   }
@@ -88,21 +80,40 @@ const handleMessage = async (event: MessageEvent) => {
 
 const saveResult = async (data: any) => {
   saving.value = true
+  
   try {
+    console.log("📥 Получено от Iframe:", data)
+
+    const tId = Number(props.taskIid)
+    const pId = Number(props.projectId)
+
+    if (isNaN(tId) || isNaN(pId)) {
+      throw new Error(`Некорректный ID (NaN). taskIid: ${props.taskIid}, projectId: ${props.projectId}`)
+    }
+
     const requestPayload = {
-      task_iid: props.taskIid,
-      project_id: props.projectId,
+      task_iid: tId,
+      project_id: pId,
       app_type: 'valves',
-      input_data: data.input,
-      output_data: data.output,
+      input_data: data?.input || null,
+      output_data: data?.output || null,
       commit_message: `Расчёт из приложения`
     }
 
+    console.log("📤 Отправляем на бэкенд:", requestPayload)
+
     await axios.post('/api/v1/calculations/save', requestPayload)
-    // alert убираем, так как toast есть внутри iframe, здесь просто лог
-    console.log(`✅ Результаты сохранены в задачу #${props.taskIid}!`)
+    
+    console.log(`✅ Результаты сохранены в задачу #${tId}!`)
   } catch (e: any) {
-    alert('Ошибка сохранения: ' + e.message)
+    console.error("❌ Ошибка сохранения:", e)
+
+    if (e.response && e.response.data) {
+      const errorDetails = JSON.stringify(e.response.data, null, 2)
+      alert(`Сервер отклонил запрос (400):\n${errorDetails}`)
+    } else {
+      alert('Ошибка сохранения: ' + e.message)
+    }
   } finally {
     saving.value = false
   }
