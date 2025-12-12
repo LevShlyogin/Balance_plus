@@ -26,11 +26,11 @@ const saving = ref(false)
 const iframeRef = ref<HTMLIFrameElement | null>(null)
 
 // ВАЖНО: Это адрес, где запущен фронтенд штоков (Stock Calc)
-const EXTERNAL_APP_URL = 'http://127.0.0.1:5252'
+const EXTERNAL_APP_URL = 'http://10.202.220.143:5252'
 
 const iframeSrc = computed(() => {
   // Добавляем timestamp, чтобы избежать кеширования iframe
-  return `${EXTERNAL_APP_URL}/calculator?embedded=true`
+  return `${EXTERNAL_APP_URL}/calculator?taskId=${props.taskIid}&projectId=${props.projectId}&embedded=true`
 })
 
 // 1. Функция загрузки данных
