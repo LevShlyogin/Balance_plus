@@ -1,11 +1,21 @@
+# .github/scripts/ai_reviewer.py
 import os
+import re
 import requests
-from github import Github
+from github import Github, Auth
 from pathlib import Path
 
-OPENROUTER_MODEL = "x-ai/grok-4.1-fast:free"
+# ═══════════════════════════════════════════════════════════════
+# КОНФИГУРАЦИЯ
+# ═══════════════════════════════════════════════════════════════
+
+OPENROUTER_MODEL = "tngtech/deepseek-r1t2-chimera:free"
 MAX_DIFF_CHARS = 100000
 
+
+# ═══════════════════════════════════════════════════════════════
+# ФУНКЦИИ
+# ═══════════════════════════════════════════════════════════════
 
 def load_system_prompt():
     prompt_path = Path(__file__).parent.parent / "prompts" / "system_prompt.md"
@@ -16,7 +26,7 @@ def load_system_prompt():
 
 def read_file_safe(path):
     try:
-        with open(path, "r", encoding="utf-8", errors="ignore") as f:
+        with open(path, "r", encoding="utf-8", errors="replace") as f:
             return f.read()
     except Exception:
         return ""
@@ -26,6 +36,15 @@ def truncate_diff(diff, max_chars=MAX_DIFF_CHARS):
     if len(diff) <= max_chars:
         return diff
     return diff[:max_chars] + "\n\n... [TRUNCATED] ..."
+
+
+def clean_thinking_tags(text):
+    """Удаляет <think>...</think> теги из ответа DeepSeek R1"""
+    # Убираем блоки размышлений
+    cleaned = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
+    # Убираем возможные незакрытые теги
+    cleaned = re.sub(r'<think>.*', '', cleaned, flags=re.DOTALL)
+    return cleaned.strip()
 
 
 def call_openrouter(system_prompt, user_prompt):
@@ -50,7 +69,7 @@ def call_openrouter(system_prompt, user_prompt):
             "temperature": 0.2,
             "max_tokens": 8192,
         },
-        timeout=120,
+        timeout=180,  # DeepSeek может думать дольше
     )
 
     print(f"OpenRouter status: {response.status_code}")
@@ -59,11 +78,15 @@ def call_openrouter(system_prompt, user_prompt):
         raise Exception(f"API Error {response.status_code}: {response.text[:500]}")
 
     data = response.json()
-    return data["choices"][0]["message"]["content"]
+    content = data["choices"][0]["message"]["content"]
+    
+    # Очищаем от thinking tags
+    return clean_thinking_tags(content)
 
 
 def main():
     print("Starting AI Code Review...")
+    print(f"Model: {OPENROUTER_MODEL}")
 
     github_token = os.environ.get("GITHUB_TOKEN")
     pr_number = int(os.environ.get("PR_NUMBER", 0))
@@ -98,7 +121,7 @@ def main():
         "---\n\nПроведи код-ревью этого PR."
     )
 
-    print("Calling Grok...")
+    print("Calling DeepSeek R1T2 Chimera...")
 
     try:
         review_text = call_openrouter(system_prompt, user_prompt)
@@ -110,7 +133,7 @@ def main():
     print("Posting comment...")
 
     try:
-        gh = Github(github_token)
+        gh = Github(auth=Auth.Token(github_token))
         repo = gh.get_repo(repo_name)
         pr = repo.get_pull(pr_number)
 
@@ -118,7 +141,7 @@ def main():
             "## 🤖 AI Code Review\n\n"
             f"{review_text}\n\n"
             "---\n"
-            "<sub>Grok 4.1 via OpenRouter</sub>"
+            "<sub>DeepSeek R1T2 Chimera via OpenRouter</sub>"
         )
 
         pr.create_issue_comment(comment)
