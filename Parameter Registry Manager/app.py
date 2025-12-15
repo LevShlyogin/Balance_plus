@@ -842,6 +842,37 @@ class ParameterRegistry:
 
 # ------------------------- GUI Components -------------------------
 
+class MethodChoiceDialog(tk.Toplevel):
+    def __init__(self, master, methods: List[str]):
+        super().__init__(master)
+        self.title("Выбор методики")
+        self.transient(master)
+        self.grab_set()
+        self.result: Optional[str] = None
+
+        ttk.Label(self, text="Методика:").pack(anchor="w", padx=10, pady=(10, 4))
+        self.var = tk.StringVar(value=methods[0] if methods else "")
+        self.combo = ttk.Combobox(self, textvariable=self.var, values=methods, state="readonly", width=30)
+        self.combo.pack(fill="x", padx=10)
+        self.combo.focus_set()
+
+        btns = ttk.Frame(self)
+        btns.pack(fill="x", padx=10, pady=10)
+        ttk.Button(btns, text="OK", command=self._ok).pack(side="right")
+        ttk.Button(btns, text="Отмена", command=self._cancel).pack(side="right", padx=(0, 6))
+
+        self.bind("<Return>", lambda e: self._ok())
+        self.bind("<Escape>", lambda e: self._cancel())
+
+    def _ok(self):
+        self.result = self.var.get().strip()
+        self.destroy()
+
+    def _cancel(self):
+        self.result = None
+        self.destroy()
+
+
 class ParameterListFrame(ttk.Frame):
     def __init__(self, master, registry: ParameterRegistry, on_select):
         super().__init__(master)
@@ -867,24 +898,27 @@ class ParameterListFrame(ttk.Frame):
         tree_container = ttk.Frame(self)
         tree_container.pack(fill="both", expand=True, padx=4, pady=4)
 
-        columns = ("pid", "qk", "long", "sys", "range", "dtype", "method")
+        # New columns order with 'Методика' after PID and 'Короткий код' after 'Длинный код'
+        columns = ("pid", "method", "qk", "long", "short", "sys", "range", "dtype")
         self.tree = ttk.Treeview(tree_container, columns=columns, show="headings", height=20)
         # Headings
         self.tree.heading("pid", text="PID")
+        self.tree.heading("method", text="Методика")
         self.tree.heading("qk", text="Вид величины")
         self.tree.heading("long", text="Длинный код")
+        self.tree.heading("short", text="Короткий код")
         self.tree.heading("sys", text="Системная ед.")
         self.tree.heading("range", text="Диапазон")
         self.tree.heading("dtype", text="Тип данных")
-        self.tree.heading("method", text="Методика")
         # Column widths (enable horizontal scroll if overflow)
         self.tree.column("pid", width=120, anchor="w")
+        self.tree.column("method", width=160, anchor="w")
         self.tree.column("qk", width=180, anchor="w")
         self.tree.column("long", width=600, anchor="w")
+        self.tree.column("short", width=180, anchor="w")
         self.tree.column("sys", width=120, anchor="w")
         self.tree.column("range", width=160, anchor="w")
         self.tree.column("dtype", width=120, anchor="w")
-        self.tree.column("method", width=160, anchor="w")
 
         # Scrollbars
         yscroll = ttk.Scrollbar(tree_container, orient="vertical", command=self.tree.yview)
@@ -912,8 +946,10 @@ class ParameterListFrame(ttk.Frame):
         self.exp_btn.pack(side="left", padx=4)
         self.imp_btn = ttk.Button(btns, text="Импорт JSON", command=self._import)
         self.imp_btn.pack(side="left", padx=4)
-        self.val_btn = ttk.Button(btns, text="Проверить", command=self._validate_selected)
-        self.val_btn.pack(side="left", padx=4)
+        # New button: Export to Markdown
+        self.exp_md_btn = ttk.Button(btns, text="Экспорт в MD", command=self._export_md)
+        self.exp_md_btn.pack(side="left", padx=4)
+        # Removed: 'Проверить' button per requirements
 
         self.refresh()
 
@@ -932,12 +968,13 @@ class ParameterListFrame(ttk.Frame):
             rng = f"{'' if mn is None else mn} - {'' if mx is None else mx}"
             self.tree.insert("", "end", iid=r["id"], values=(
                 r["id"],
+                r["method_name"] or "",
                 r["quantity_kind"],
                 r["long_code"],
+                r["short_code"] or "",
                 r["system_unit"],
                 rng,
                 r["data_type"],
-                r["method_name"] or ""
             ))
 
     def _on_select(self, event=None):
@@ -949,8 +986,10 @@ class ParameterListFrame(ttk.Frame):
 
     def _add(self):
         draft_long = f"draft.item.{gen_uuid().split('-')[0]}"
-        su = simpledialog.askstring("Новый параметр", "Системная единица (например, K, Pa, kg/s):", parent=self) or "K"
-        su = su.strip()
+        # Choose a default existing unit from UNIT dictionary (no prompt)
+        cur = self.registry.db._execute("SELECT code FROM UNIT ORDER BY code LIMIT 1")
+        row = cur.fetchone()
+        su = row["code"] if row else ""
         param = {
             "longCode": draft_long,
             "quantityKind": "",
@@ -963,7 +1002,7 @@ class ParameterListFrame(ttk.Frame):
             "description": {"ru": ""},
             "tags": [],
             "constraints": {},
-            "allowedUnits": [su],
+            "allowedUnits": [su] if su else [],
         }
         try:
             new_pid = self.registry.create_parameter(param)
@@ -1100,6 +1139,68 @@ class ParameterListFrame(ttk.Frame):
             self.on_select(new_pid)
         except Exception as ex:
             messagebox.showerror("Ошибка", f"Не удалось импортировать:\n{ex}")
+
+    def _export_md(self):
+        # Build list of methods from dictionary; if empty, also scan existing parameters
+        methods = sorted(set(self.registry.db.list_segment_values("method")))
+        if not methods:
+            cur = self.registry.db._execute("SELECT DISTINCT method_name FROM PARAMETER WHERE method_name IS NOT NULL ORDER BY method_name")
+            methods = [r["method_name"] for r in cur.fetchall()]
+        if not methods:
+            messagebox.showwarning("Внимание", "Список методик пуст")
+            return
+
+        dlg = MethodChoiceDialog(self, methods)
+        self.wait_window(dlg)
+        method = dlg.result
+        if not method:
+            return
+
+        path = filedialog.asksaveasfilename(defaultextension=".txt", filetypes=[("Text", "*.txt")], title="Сохранить Markdown таблицу")
+        if not path:
+            return
+
+        try:
+            cur = self.registry.db._execute(
+                "SELECT * FROM PARAMETER WHERE method_name=? ORDER BY long_code", (method,)
+            )
+            rows = cur.fetchall()
+            if not rows:
+                messagebox.showinfo("Экспорт в MD", f"Нет данных для методики '{method}'")
+                return
+
+            def md_escape(s: Any) -> str:
+                t = str(s if s is not None else "")
+                t = t.replace("|", "\\|").replace("\n", " ").replace("\r", " ")
+                return t
+
+            headers = ["Название", "Системная ед.", "Короткий код", "Длинный код"]
+            lines = []
+            lines.append("| " + " | ".join(headers) + " |")
+            lines.append("| " + " | ".join([":---:"] * len(headers)) + " |")
+
+            for r in rows:
+                labels = safe_json_loads(r["labels"], {})
+                descr = safe_json_loads(r["description"], {})
+                constr = safe_json_loads(r["constraints"], {})
+                mn = constr.get("min", "")
+                mx = constr.get("max", "")
+                rng = f"{'' if mn is None else mn} - {'' if mx is None else mx}"
+
+                row_vals = [
+                    md_escape(labels.get("ru", "")),
+                    md_escape(r["system_unit"]),
+                    md_escape(r["short_code"] or ""),
+                    md_escape(r["long_code"])
+                ]
+                lines.append("| " + " | ".join(row_vals) + " |")
+
+            with open(path, "w", encoding="utf-8") as f:
+                f.write("\n".join(lines) + "\n")
+
+            messagebox.showinfo("Экспорт в MD", f"Сохранено: {path}")
+        except Exception as ex:
+            messagebox.showerror("Ошибка", f"Не удалось экспортировать:\n{ex}")
 
     def _validate_selected(self):
         sel = self.tree.selection()
@@ -1930,8 +2031,8 @@ class App(tk.Tk):
         helpmenu.add_command(label="Инструкция (F1)", command=self.show_help)
         helpmenu.add_separator()
         helpmenu.add_command(label="О программе", command=self.show_about)
-        menubar.add_cascade(label="Справка", menu=helpmenu)
         self.config(menu=menubar)
+        menubar.add_cascade(label="Справка", menu=helpmenu)
 
         paned = ttk.Panedwindow(self, orient="horizontal")
         paned.pack(fill="both", expand=True)
