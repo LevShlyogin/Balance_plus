@@ -3,10 +3,14 @@ import os
 import re
 import subprocess
 import requests
-from github import Github
+from github import Github, Auth
 from pathlib import Path
 
-OPENROUTER_MODEL = "x-ai/grok-4.1-fast:free"
+# ═══════════════════════════════════════════════════════════════
+# КОНФИГУРАЦИЯ
+# ═══════════════════════════════════════════════════════════════
+
+OPENROUTER_MODEL = "tngtech/deepseek-r1t2-chimera:free"
 MAX_SOURCE_CHARS = 50000
 
 # Маппинг расширений на языки и фреймворки
@@ -69,8 +73,11 @@ TEST_FILE_PATTERN = re.compile(
 )
 
 
+# ═══════════════════════════════════════════════════════════════
+# ФУНКЦИИ
+# ═══════════════════════════════════════════════════════════════
+
 def load_test_prompt():
-    """Загружаем системный промт из файла"""
     prompt_path = Path(__file__).parent.parent / "prompts" / "test_generator_prompt.md"
     if prompt_path.exists():
         return prompt_path.read_text(encoding="utf-8")
@@ -79,7 +86,6 @@ def load_test_prompt():
 
 
 def get_default_prompt():
-    """Дефолтный промпт если файл не найден"""
     return (
         "You are a Senior Software Engineer specializing in testing.\n"
         "Write comprehensive unit tests for the provided code.\n"
@@ -89,7 +95,6 @@ def get_default_prompt():
 
 
 def read_file_safe(path):
-    """Безопасное чтение файла с заменой невалидных символов"""
     try:
         with open(path, "r", encoding="utf-8", errors="replace") as f:
             content = f.read()
@@ -104,8 +109,14 @@ def read_file_safe(path):
         return None
 
 
+def clean_thinking_tags(text):
+    """Удаляет <think>...</think> теги из ответа DeepSeek R1"""
+    cleaned = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
+    cleaned = re.sub(r'<think>.*', '', cleaned, flags=re.DOTALL)
+    return cleaned.strip()
+
+
 def call_openrouter(system_prompt, user_prompt):
-    """Вызов OpenRouter API"""
     api_key = os.environ.get("OPENROUTER_API_KEY")
     if not api_key:
         raise ValueError("OPENROUTER_API_KEY not set")
@@ -127,7 +138,7 @@ def call_openrouter(system_prompt, user_prompt):
             "temperature": 0.2,
             "max_tokens": 16384,
         },
-        timeout=180,
+        timeout=300,  # DeepSeek может думать дольше
     )
 
     print(f"OpenRouter status: {response.status_code}")
@@ -136,22 +147,21 @@ def call_openrouter(system_prompt, user_prompt):
         raise Exception(f"API Error {response.status_code}: {response.text[:500]}")
 
     data = response.json()
-    return data["choices"][0]["message"]["content"]
+    content = data["choices"][0]["message"]["content"]
+    
+    # Очищаем от thinking tags
+    return clean_thinking_tags(content)
 
 
 def extract_code_blocks(text):
     """Извлекает код из markdown блоков"""
-    # Паттерн для code blocks с опциональным языком
     pattern = r"```(?:[\w+-]*)?\s*\n(.*?)```"
     matches = re.findall(pattern, text, re.DOTALL)
     
     if matches:
-        # Объединяем все блоки кода
         code = "\n\n".join(m.strip() for m in matches if m.strip())
         return code
     
-    # Если нет code blocks, возвращаем как есть (убирая markdown)
-    # Удаляем строки которые выглядят как заголовки/списки
     lines = []
     for line in text.split("\n"):
         if not line.startswith("#") and not line.startswith("-") and not line.startswith("*"):
@@ -160,7 +170,6 @@ def extract_code_blocks(text):
 
 
 def get_test_file_path(source_path, config):
-    """Определяет путь для файла с тестами"""
     source = Path(source_path)
     name = source.stem
     ext = source.suffix
@@ -173,34 +182,28 @@ def get_test_file_path(source_path, config):
         test_name = f"test_{name}{ext}"
     
     if config.get("test_dir"):
-        # Сохраняем структуру папок
         relative_parent = source.parent
         test_dir = Path(config["test_dir"]) / relative_parent
         return test_dir / test_name
     else:
-        # Тесты рядом с исходником (Go style)
         return source.parent / test_name
 
 
 def parse_files_from_comment(comment_body):
-    """Извлекает файлы из комментария /generate-tests file1.py file2.py"""
     match = re.search(r"/generate-tests\s+(.*)", comment_body, re.IGNORECASE)
     if match:
         files_str = match.group(1).strip()
         if files_str:
-            # Разбиваем по пробелам, но учитываем пути с пробелами в кавычках
             files = re.findall(r'["\']([^"\']+)["\']|(\S+)', files_str)
             return [f[0] or f[1] for f in files if f[0] or f[1]]
     return None
 
 
 def is_test_file(filepath):
-    """Проверяет, является ли файл тестовым"""
     return bool(TEST_FILE_PATTERN.search(filepath))
 
 
 def filter_source_files(files_list):
-    """Фильтрует только исходные файлы (не тесты, не конфиги)"""
     source_files = []
     skip_dirs = {
         "__pycache__", "node_modules", ".git", "venv", ".venv",
@@ -213,18 +216,15 @@ def filter_source_files(files_list):
         if not f:
             continue
         
-        # Пропускаем тестовые файлы (улучшенный regex)
         if is_test_file(f):
             print(f"  Skipping test file: {f}")
             continue
         
-        # Пропускаем служебные директории
         path_parts = Path(f).parts
         if any(part in skip_dirs for part in path_parts):
             print(f"  Skipping (skip dir): {f}")
             continue
         
-        # Только поддерживаемые расширения
         ext = Path(f).suffix.lower()
         if ext in LANG_CONFIG:
             source_files.append(f)
@@ -235,12 +235,10 @@ def filter_source_files(files_list):
 
 
 def git_commit_and_push(generated_tests, head_ref, is_fork):
-    """Коммитит и пушит сгенерированные тесты"""
     if is_fork:
         print("Cannot push to fork, skipping git operations")
         return False
     
-    # Настраиваем git
     subprocess.run(
         ["git", "config", "user.name", "github-actions[bot]"],
         check=True
@@ -250,11 +248,9 @@ def git_commit_and_push(generated_tests, head_ref, is_fork):
         check=True
     )
     
-    # Добавляем файлы
     for item in generated_tests:
         subprocess.run(["git", "add", item["test"]], check=True)
     
-    # Проверяем есть ли что коммитить
     result = subprocess.run(
         ["git", "diff", "--staged", "--quiet"],
         capture_output=True
@@ -264,16 +260,13 @@ def git_commit_and_push(generated_tests, head_ref, is_fork):
         print("No changes to commit")
         return False
     
-    # Формируем сообщение коммита
     files_list = "\n".join(
         [f"- {item['source']} -> {item['test']}" for item in generated_tests]
     )
     commit_msg = f"test: add AI-generated tests\n\n{files_list}"
     
-    # Коммитим
     subprocess.run(["git", "commit", "-m", commit_msg], check=True)
     
-    # Пушим
     push_result = subprocess.run(
         ["git", "push", "origin", f"HEAD:{head_ref}"],
         capture_output=True,
@@ -288,9 +281,14 @@ def git_commit_and_push(generated_tests, head_ref, is_fork):
     return True
 
 
+# ═══════════════════════════════════════════════════════════════
+# MAIN
+# ═══════════════════════════════════════════════════════════════
+
 def main():
     print("=" * 60)
     print("AI Test Generator")
+    print(f"Model: {OPENROUTER_MODEL}")
     print("=" * 60)
     
     mode = os.environ.get("MODE", "comment")
@@ -306,10 +304,9 @@ def main():
         print("Error: REPO_NAME not set")
         return 1
     
-    gh = Github(github_token)
+    gh = Github(auth=Auth.Token(github_token))
     repo = gh.get_repo(repo_name)
     
-    # Определяем файлы для генерации тестов
     if mode == "manual":
         target_file = os.environ.get("TARGET_FILE")
         framework_override = os.environ.get("TEST_FRAMEWORK")
@@ -356,35 +353,29 @@ def main():
         print(f"\n{'─' * 40}")
         print(f"Processing: {file_path}")
         
-        # Читаем исходный код
         source_code = read_file_safe(file_path)
         if not source_code:
             print(f"Cannot read {file_path}, skipping")
             errors.append({"file": file_path, "error": "Cannot read file"})
             continue
         
-        # Ограничиваем размер
         if len(source_code) > MAX_SOURCE_CHARS:
             print(f"Warning: {file_path} is too large, truncating")
             source_code = source_code[:MAX_SOURCE_CHARS] + "\n\n# ... TRUNCATED ..."
         
-        # Определяем конфигурацию
         ext = Path(file_path).suffix.lower()
         config = LANG_CONFIG.get(ext, LANG_CONFIG[".py"]).copy()
         
         if framework_override:
             config["framework"] = framework_override
         
-        # Определяем путь для тестов
         test_path = get_test_file_path(file_path, config)
         
-        # Проверяем существующий файл
         if test_path.exists():
             print(f"Test file already exists: {test_path}")
             skipped_existing.append({"source": file_path, "test": str(test_path)})
             continue
         
-        # Формируем запрос
         user_prompt = (
             "## Task\n\n"
             f"Write unit tests for the following file.\n\n"
@@ -404,20 +395,17 @@ def main():
         )
         
         try:
-            print("Calling AI model...")
+            print("Calling DeepSeek R1T2 Chimera...")
             response = call_openrouter(system_prompt, user_prompt)
             test_code = extract_code_blocks(response)
             
-            # Проверяем что получили код
             if not test_code.strip():
                 print(f"Warning: Empty test code for {file_path}")
                 errors.append({"file": file_path, "error": "Empty response from AI"})
                 continue
             
-            # Создаём директорию если нужно
             test_path.parent.mkdir(parents=True, exist_ok=True)
             
-            # Сохраняем тесты
             with open(test_path, "w", encoding="utf-8") as f:
                 f.write(test_code)
             
@@ -431,25 +419,20 @@ def main():
     print(f"\n{'=' * 60}")
     print(f"Summary: {len(generated_tests)} generated, {len(skipped_existing)} skipped, {len(errors)} errors")
     
-    # Если это комментарий в PR — коммитим и постим результат
     if mode != "manual":
         pr_number = int(os.environ.get("PR_NUMBER", 0))
         head_ref = os.environ.get("HEAD_REF", "main")
         
         if pr_number and generated_tests:
-            # Коммитим и пушим
             pushed = git_commit_and_push(generated_tests, head_ref, is_fork)
             
-            # Формируем комментарий
             pr = repo.get_pull(pr_number)
             
-            # Таблица сгенерированных
             gen_table = "\n".join([
                 f"| `{item['source']}` | `{item['test']}` | ✅ |"
                 for item in generated_tests
             ])
             
-            # Таблица пропущенных
             skip_table = ""
             if skipped_existing:
                 skip_rows = "\n".join([
@@ -458,7 +441,6 @@ def main():
                 ])
                 skip_table = f"\n\n### Пропущенные (тесты уже существуют)\n\n| Файл | Тест | Статус |\n|------|------|--------|\n{skip_rows}"
             
-            # Таблица ошибок
             err_table = ""
             if errors:
                 err_rows = "\n".join([
