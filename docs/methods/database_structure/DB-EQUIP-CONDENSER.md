@@ -48,7 +48,7 @@
 | `passes_builtin` | Число ходов воды ВП ($Z_{builtin}$) | - | Int | Нет | Конструктивное число ходов во встроенном пучке | >= 1 |
 | `ejectors_count` | Число эжекторов ($Z_{ej}$) | шт | Int | **Да** | Кол-во работающих эжекторов | >= 1 |
 
-### 2.2. Паспортные ограничения (Limits & Ratings)
+### 2.3. Паспортные ограничения (Limits & Ratings)
 Используются для валидации введенного режима.
 
 | Ключ (Code) | Название (UI) | Ед. изм. | Тип | Обяз. | Описание | Валидация |
@@ -72,6 +72,47 @@
 | `G_water_builtin_z2_min` | Минимальный расход охлаждающей воды $G_{BZ2min}$ | т/ч | Float | Нет | Минимальный расход охлаждающей воды через встроенный пучок в два хода (основные пучки отключены) | >= 0 |
 | `G_water_builtin_z4_max` | Максимальный расход охлаждающей воды $G_{BZ4max}$ | т/ч | Float | Нет | Максимальный расход охлаждающей воды через встроенный пучок в четыре хода (основные пучки отключены) | >= 0 |
 | `G_water_builtin_z4_min` | Минимальный расход охлаждающей воды $G_{BZ4min}$ | т/ч | Float | Нет | Минимальный расход охлаждающей воды через встроенный пучок в четыре хода (основные пучки отключены) | >= 0 |
+
+### 2.4. Кодировка данных БД (Code)
+
+| Название | Системная ед. | Короткий код | Длинный код |
+| :---: | :---: | :---: | :---: |
+| Активная длина труб ВП | мм | L_builtin | dimension.metal.data.condenser.db-equip-condenser.builtin-length |
+| Внутренний диаметр труб | мм | d_in | dimension.metal.data.condenser.db-equip-condenser.diameter-internal |
+| Активная длина труб ОП | мм | L_main | dimension.metal.data.condenser.db-equip-condenser.main-length |
+| Толщина стенки труб | мм | S_tube | dimension.metal.data.condenser.db-equip-condenser.wall-thickness |
+| Присосы воздуха | кг/ч | G_air | mass-flow.air.data.condenser.db-equip-condenser |
+| Номинальный расход пара | т/ч | G_nom | mass-flow.steam.inlet.condenser.nom.db-equip-condenser |
+| Максимальный расход охлаждающей воды | т/ч | G_CWmax | mass-flow.water.inlet.condenser.max.db-equip-condenser.colling |
+| Максимальный расход охлаждающей воды | т/ч | G_BZ1max | mass-flow.water.inlet.condenser.max.db-equip-condenser.colling-builtin-z1 |
+| Максимальный расход охлаждающей воды | т/ч | G_BZ2max | mass-flow.water.inlet.condenser.max.db-equip-condenser.colling-builtin-z2 |
+| Максимальный расход охлаждающей воды | т/ч | G_BZ4max | mass-flow.water.inlet.condenser.max.db-equip-condenser.colling-builtin-z4 |
+| Максимальный расход охлаждающей воды | т/ч | G_Mmax | mass-flow.water.inlet.condenser.max.db-equip-condenser.colling-main |
+| Максимальный расход охлаждающей воды | т/ч | G_MBmax | mass-flow.water.inlet.condenser.max.db-equip-condenser.colling-main-and-builtin |
+| Максимальный расход охлаждающей воды | т/ч | G_MBZ1max | mass-flow.water.inlet.condenser.max.db-equip-condenser.colling-main-and-builtin-z1 |
+| Максимальный расход охлаждающей воды | т/ч | G_MBZ2max | mass-flow.water.inlet.condenser.max.db-equip-condenser.colling-main-and-builtin-z2 |
+| Минимальный расход охлаждающей воды | т/ч | G_CWmin | mass-flow.water.inlet.condenser.min.db-equip-condenser.colling |
+| Минимальный расход охлаждающей воды | т/ч | G_BZ1min | mass-flow.water.inlet.condenser.min.db-equip-condenser.colling-builtin-z1 |
+| Минимальный расход охлаждающей воды | т/ч | G_BZ2min | mass-flow.water.inlet.condenser.min.db-equip-condenser.colling-builtin-z2 |
+| Минимальный расход охлаждающей воды | т/ч | G_BZ4min | mass-flow.water.inlet.condenser.min.db-equip-condenser.colling-builtin-z4 |
+| Минимальный расход охлаждающей воды | т/ч | G_Mmin | mass-flow.water.inlet.condenser.min.db-equip-condenser.colling-main |
+| Минимальный расход охлаждающей воды | т/ч | G_MBmin | mass-flow.water.inlet.condenser.min.db-equip-condenser.colling-main-and-builtin |
+| Минимальный расход охлаждающей воды | т/ч | G_MBZ1min | mass-flow.water.inlet.condenser.min.db-equip-condenser.colling-main-and-builtin-z1 |
+| Минимальный расход охлаждающей воды | т/ч | G_MBZ2min | mass-flow.water.inlet.condenser.min.db-equip-condenser.colling-main-and-builtin-z2 |
+| Номинальный расход охлаждающей воды | т/ч | G_CWnom | mass-flow.water.inlet.condenser.nom.db-equip-condenser.colling |
+| Номер сборочного чертежа конденсатора | - | doc_num_assembly | names.data.condenser.db-equip-condenser.doc-num-assembly |
+| Номер паспорта конденсатора | - | doc_num_passport | names.data.condenser.db-equip-condenser.doc-num-passport |
+| Номер документа теплогидравлического расчета | - | doc_num_thermo_calc | names.data.condenser.db-equip-condenser.doc-num-thermo-calc |
+| Наименование конденсатора | - | name_condenser | names.data.condenser.db-equip-condenser.name |
+| ID материала охлаждающих труб | - | material_id | names.metal.data.condenser.db-equip-condenser.material-id |
+| ID конденсатора | - | condenser_id | names.other.data.condenser.db-equip-condenser.condenser-id |
+| ID проекта | - | project_id | names.other.data.condenser.db-equip-condenser.project-id |
+| Число труб ВО | шт | N_aircooler | quantity.metal.data.condenser.db-equip-condenser.aircooler-count |
+| Число труб ВП | шт | N_builtin | quantity.metal.data.condenser.db-equip-condenser.builtin-count |
+| Количество охлаждающих труб основного пучка | шт | N_main | quantity.metal.data.condenser.db-equip-condenser.main-count |
+| Число эжекторов | шт | Z_ejectors | quantity.other.json.condenser.db-equip-condenser.ejectors-count |
+| Число ходов воды ВП | шт | Z_builtin | quantity.water.json.condenser.db-equip-condenser.passes-builtin |
+| Число ходов воды ОП | шт | Z_main | quantity.water.json.condenser.db-equip-condenser.passes-main |
 
 ## 3. Пример JSON (Payload)
 
