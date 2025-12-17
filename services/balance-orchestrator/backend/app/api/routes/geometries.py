@@ -2,8 +2,8 @@
 import json
 from fastapi import APIRouter, HTTPException
 
-from schemas.geometry import GeometriesManifest, GeometryInfo, CondenserGeometry
-from gitlab_adapter import gitlab_client
+from app.schemas.geometry import GeometriesManifest, GeometryInfo, CondenserGeometry
+from app.core.gitlab_adapter import gitlab_client
 
 router = APIRouter(prefix="/geometries", tags=["Geometries"])
 

@@ -2,7 +2,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from api.routes import health, geometries, tasks, user, calculations, projects
+from app.api.routes import health, geometries, tasks, user, calculations, projects
 
 app = FastAPI(
     title="Balance+ Orchestrator",

@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from gitlab_adapter import gitlab_client
+from app.core.gitlab_adapter import gitlab_client
 
 router = APIRouter(prefix="/user", tags=["User"])
 

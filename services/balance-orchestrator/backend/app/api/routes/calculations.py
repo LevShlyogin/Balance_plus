@@ -1,8 +1,8 @@
 import json
 from datetime import datetime
 from fastapi import APIRouter, HTTPException, Query
-from schemas.calculation import CalculationSaveRequest
-from gitlab_adapter import gitlab_client
+from app.schemas.calculation import CalculationSaveRequest
+from app.core.gitlab_adapter import gitlab_client
 from slugify import slugify
 
 router = APIRouter(prefix="/calculations", tags=["Calculations"])

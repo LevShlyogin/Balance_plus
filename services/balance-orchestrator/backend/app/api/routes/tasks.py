@@ -2,8 +2,8 @@
 from fastapi import APIRouter, HTTPException, Query
 from slugify import slugify
 
-from schemas.task import TaskInfo, TaskCreate, BranchCreate, BranchInfo, BranchCreateRequest
-from gitlab_adapter import gitlab_client
+from app.schemas.task import TaskInfo, TaskCreate, BranchCreate, BranchInfo, BranchCreateRequest
+from app.core.gitlab_adapter import gitlab_client
 
 router = APIRouter(prefix="/tasks", tags=["Tasks"])
 
